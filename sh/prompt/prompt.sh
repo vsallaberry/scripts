@@ -1,8 +1,8 @@
 #!/bin/sh
 # --
-# Copyright (C) 2017 Vincent Sallaberry
+# Copyright (C) 2017-2018 Vincent Sallaberry
 # scripts/sh/prompt.sh <https://github.com/vsallaberry/scripts>
-# ps1_open v5.0.3 SH ~generic prompt.
+# ps1_open v5.0.4 SH ~generic prompt.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -64,7 +64,7 @@
 #
 # At the end of the scripts, all variables including inputs are unset.
 #
-ps1Version="5.0.3"
+ps1Version="5.0.4"
 ps1Items="Date Err Job User Host Pwd Git Shell Dash Title"
 
 # Interactive shell only
@@ -123,8 +123,8 @@ fi
 ps1DateOnDef=2
 if [ "${ps1ShType}" = "bash" ]; then
     ps1Date="\\A"; [ "${ps1DateOn:-$ps1DateOnDef}" = "2" ] && ps1Date="\\D{%a} ${ps1Date}"
-    ps1Pwd="\\w"
-    ps1Host="\\h"
+    ps1Pwd="${ps1Pwd-\\w}"
+    ps1Host="${ps1Host-\\h}"
     COLOR_SHESC_BEG="\\["
     COLOR_SHESC_END="\\]"
     COLOR_SHESC_INIT=
@@ -132,8 +132,8 @@ elif [ "${ps1ShType}" = "zsh" ]; then
     setopt PROMPT_SUBST
     #[ "${ps1Print##*/}" = "printf" ] && ps1ZshEsc="%" || ps1ZshEsc=
     ps1Date="${ps1ZshEsc}%T"; [ "${ps1DateOn:-$ps1DateOnDef}" = "2" ] && ps1Date="${ps1ZshEsc}%D{${ps1ZshEsc}%a} ${ps1Date}"
-    ps1Pwd="${ps1ZshEsc}%~"
-    ps1Host="${ps1ZshEsc}%m"
+    ps1Pwd="${ps1Pwd-${ps1ZshEsc}%~}"
+    ps1Host="${ps1Host-${ps1ZshEsc}%m}"
     COLOR_SHESC_BEG="${ps1ZshEsc}%{"
     COLOR_SHESC_END="${ps1ZshEsc}%}"
     COLOR_SHESC_INIT=
@@ -141,8 +141,8 @@ elif [ "${ps1ShType}" = "zsh" ]; then
 elif [ "${ps1ShType%2}" = "kshhack" ]; then
     ps1Date=; [ "${ps1DateOn:-$ps1DateOnDef}" = "2" ] && ps1Date="%a "
     ps1Date="\$($(which date) '+${ps1Date}%H:%M')"
-    ps1Pwd="\${PWD}"
-    ps1Host="$(hostname -s)"
+    ps1Pwd="${ps1Pwd-\$PWD}"
+    ps1Host="${ps1Host-$(hostname -s)}"
     # Use a non-printable character used as color escape sequence.
     # \a(\007) is mentionned in ksh man, but the bell is annoying. try \026.
     COLOR_SHESC_BEG="\026"
