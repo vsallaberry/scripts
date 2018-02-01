@@ -234,6 +234,10 @@ if test -t 1; then
     if test $? -ne 0 -o -z "${ps1Colors}" -o ${ps1Colors} -lt 8; then
         unset ps1Colors
     fi
+    if [ "$ps1ShType" = "kshhack2" ] && [ -x "`which tput`" ]; then
+        unset COLUMNS
+        export COLUMNS=$(tput cols columns | head -n1)
+    fi
 fi
 
 # Allow Shell to update term window title on supported terminals.
