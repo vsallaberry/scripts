@@ -83,7 +83,7 @@ show_help() {
     echo "  -v, --verbose             : verbose the table"
     echo "  -s, --short               : short table"
     echo "  -H, --layout [line|col]   : invert or set host layout, default: $hostlayout."
-    echo "  -c, --columns [chars]     : limit display to <chars> columns, default=$max_columns"
+    echo "  -c, --columns [chars]     : NOT_IMPLEMENTED - limit display to <chars> columns, default=$max_columns"
     echo "  -T, --col-title-size [n]  : set the size of a column title, default=$coltitle_size"
     echo "  -t, --line-title-size [n] : set the size of a line title, default=$linetitle_size"
     echo "  -M, --col-title-max [n]   : set the max size of a column title, default=$coltitle_max"
