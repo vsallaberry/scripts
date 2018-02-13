@@ -76,7 +76,7 @@ fi
 show_help() {
     exit_status=$1
     echo "Usage: $0 [options]"
-    echo "  -L, --logdir              : where to find logs, default: {CWD,sWD}/{,logs} (${logdir##$PWD/})."
+    echo "  -L, --logdir folder       : where to find logs, default: {CWD,sWD}/{,logs} (${logdir##$PWD/})."
     echo "  -D, --default             : do not load specific vtable_spec.sh script (${vtablespec##$PWD/})"
     echo "  -n, --no-fetch            : just parse existing logs without fetching them"
     echo "  -C, --color [on|off]      : force colors to off or on, default: $colors."
