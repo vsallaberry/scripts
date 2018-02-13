@@ -36,11 +36,11 @@ colors=auto
 verbosetable=
 shorttable=
 hostlayout=line
-columns=auto
+max_columns=auto
 coltitle_size=auto
 linetitle_size=auto
 coltitle_max=25
-linetitle_max=25
+linetitle_max=20
 
 color_esc='\033['
 color_end='m'
