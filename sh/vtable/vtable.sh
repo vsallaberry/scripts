@@ -39,6 +39,8 @@ hostlayout=line
 columns=auto
 coltitle_size=auto
 linetitle_size=auto
+coltitle_max=25
+linetitle_max=25
 
 color_esc='\033['
 color_end='m'
@@ -73,7 +75,7 @@ fi
 
 show_help() {
     exit_status=$1
-    echo "Usage: $0 [-h] [-L] [-D] [-n] [-C] [-v] [-s] [-H] [-c] [-T] [-t]"
+    echo "Usage: $0 [-h] [-L] [-D] [-n] [-C] [-v] [-s] [-H] [-c] [-T] [-t] [-M] [-m]"
     echo "  -L, --logdir              : where to find logs, default: {CWD,sWD}/{,logs} (${logdir##$PWD/})."
     echo "  -D, --default             : do not load specific vtable_spec.sh script (${vtablespec##$PWD/})"
     echo "  -n, --no-fetch            : just parse existing logs without fetching them"
@@ -82,8 +84,10 @@ show_help() {
     echo "  -s, --short               : short table"
     echo "  -H, --layout [line|col]   : invert or set host layout, default: $hostlayout."
     echo "  -c, --columns [chars]     : limit display to <chars> columns, default=$max_columns"
-    echo "  -T, --col-title-size [n]  : set the size of a columns title, default=$coltitle_size"
+    echo "  -T, --col-title-size [n]  : set the size of a column title, default=$coltitle_size"
     echo "  -t, --line-title-size [n] : set the size of a line title, default=$linetitle_size"
+    echo "  -M, --col-title-max [n]   : set the max size of a column title, default=$coltitle_max"
+    echo "  -m, --line-title-max [n]  : set the max size of a line title, default=$linetitle_max"
     exit $exit_status
 }
 while test -n "$1"; do
@@ -92,14 +96,14 @@ while test -n "$1"; do
         -L|--logdir)        test -z "$2" && show_help 2; logdir=$2; shift;;
         -D|--default)       ;;
         -n|--no-fetch)      fetch=;;
-        -C|--color)         case $2 in ''|-*) colors=on;; on|off) colors=$2; shift;; *) show_help 2;; esac ;;
+        -C|--color)         case $2 in ''|-*) colors=on;; on|off) colors=$2; shift;; *) show_help 3;; esac ;;
         -v|--verbose)       verbosetable=yes;;
         -s|--short)         shorttable=yes;;
         -H|--layout)        case $2 in    ''|-*)  test "$hostlayout" = "line" && hostlayout=col || hostlayout=line;;
                                        line|col)  hostlayout=$2; shift;;
-                                              *)  show_help 3;;
+                                              *)  show_help 4;;
                             esac;;
-        -c|--columns)       echo "'$1': Not implemented"; exit 2
+        -c|--columns)       echo "'$1': Not implemented"; exit 12
                             case $2 in    ''|-*)  max_columns=auto;;
                                               *)  max_columns=$(($2)); shift;; esac ;;
 
@@ -107,6 +111,10 @@ while test -n "$1"; do
                                               *)  coltitle_size=$(($2)); shift;; esac ;;
         -t|--line-title-size) case $2 in  ''|-*)  linetitle_size=auto;;
                                               *)  linetitle_size=$(($2)); shift;; esac ;;
+        -M|--col-title-max)   case $2 in  ''|-*)  show_help 5;;
+                                              *)  coltitle_max=$(($2)); shift;; esac ;;
+        -m|--line-title-max)  case $2 in  ''|-*)  show_help 6;;
+                                              *)  linetitle_max=$(($2)); shift;; esac ;;
         *)                  show_help 1;;
     esac
     shift
@@ -232,6 +240,8 @@ print_table() {
         done
         linesz=$i ;;
     esac
+    test "$colsz"  -gt "$coltitle_max"  &&  colsz=$coltitle_max
+    test "$linesz" -gt "$linetitle_max" && linesz=$linetitle_max
 
     local statsz=$(((colsz-1)/(nstat+1)))
     local statpad=$((colsz-(nstat*statsz)-(nstat-1)))
