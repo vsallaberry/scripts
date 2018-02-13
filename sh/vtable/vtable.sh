@@ -75,7 +75,7 @@ fi
 
 show_help() {
     exit_status=$1
-    echo "Usage: $0 [-h] [-L] [-D] [-n] [-C] [-v] [-s] [-H] [-c] [-T] [-t] [-M] [-m]"
+    echo "Usage: $0 [options]"
     echo "  -L, --logdir              : where to find logs, default: {CWD,sWD}/{,logs} (${logdir##$PWD/})."
     echo "  -D, --default             : do not load specific vtable_spec.sh script (${vtablespec##$PWD/})"
     echo "  -n, --no-fetch            : just parse existing logs without fetching them"
@@ -233,7 +233,7 @@ print_table() {
         colsz=$i ;;
     esac
     case "$linesz" in ''|auto|0|-*)
-        i=4
+        i=9
         for n in "${line_header}" ${line_items}; do
             cut=${#n}; cut=$((cut+1))
             test $cut -gt $i && i=$cut
