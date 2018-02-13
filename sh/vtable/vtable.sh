@@ -36,6 +36,9 @@ colors=auto
 verbosetable=
 shorttable=
 hostlayout=line
+columns=auto
+coltitle_size=auto
+linetitle_size=auto
 
 color_esc='\033['
 color_end='m'
@@ -70,14 +73,17 @@ fi
 
 show_help() {
     exit_status=$1
-    echo "Usage: $0 [-h] [-L] [-D] [-n] [-C] [-v] [-s] [-H]"
-    echo "  -L, --logdir            : where to find logs, default: {CWD,sWD}/{,logs} (${logdir##$PWD/})."
-    echo "  -D, --default           : do not load specific vtable_spec.sh script (${vtablespec##$PWD/})"
-    echo "  -n, --no-fetch          : just parse existing logs without fetching them"
-    echo "  -C, --color [on|off]    : force colors to off or on, default: $colors."
-    echo "  -v, --verbose           : verbose the table"
-    echo "  -s, --short             : short table"
-    echo "  -H, --layout [line|col] : invert or set host layout, default: $hostlayout."
+    echo "Usage: $0 [-h] [-L] [-D] [-n] [-C] [-v] [-s] [-H] [-c] [-T] [-t]"
+    echo "  -L, --logdir              : where to find logs, default: {CWD,sWD}/{,logs} (${logdir##$PWD/})."
+    echo "  -D, --default             : do not load specific vtable_spec.sh script (${vtablespec##$PWD/})"
+    echo "  -n, --no-fetch            : just parse existing logs without fetching them"
+    echo "  -C, --color [on|off]      : force colors to off or on, default: $colors."
+    echo "  -v, --verbose             : verbose the table"
+    echo "  -s, --short               : short table"
+    echo "  -H, --layout [line|col]   : invert or set host layout, default: $hostlayout."
+    echo "  -c, --columns [chars]     : limit display to <chars> columns, default=$max_columns"
+    echo "  -T, --col-title-size [n]  : set the size of a columns title, default=$coltitle_size"
+    echo "  -t, --line-title-size [n] : set the size of a line title, default=$linetitle_size"
     exit $exit_status
 }
 while test -n "$1"; do
@@ -89,16 +95,38 @@ while test -n "$1"; do
         -C|--color)         case $2 in ''|-*) colors=on;; on|off) colors=$2; shift;; *) show_help 2;; esac ;;
         -v|--verbose)       verbosetable=yes;;
         -s|--short)         shorttable=yes;;
-        -H|--layout)        case $2 in ''|-*)     test "$hostlayout" = "line" && hostlayout=col || hostlayout=line;;
+        -H|--layout)        case $2 in    ''|-*)  test "$hostlayout" = "line" && hostlayout=col || hostlayout=line;;
                                        line|col)  hostlayout=$2; shift;;
-                                       *)         show_help 3;;
+                                              *)  show_help 3;;
                             esac;;
+        -c|--columns)       echo "'$1': Not implemented"; exit 2
+                            case $2 in    ''|-*)  max_columns=auto;;
+                                              *)  max_columns=$(($2)); shift;; esac ;;
+
+        -T|--col-title-size)  case $2 in  ''|-*)  coltitle_size=auto;;
+                                              *)  coltitle_size=$(($2)); shift;; esac ;;
+        -t|--line-title-size) case $2 in  ''|-*)  linetitle_size=auto;;
+                                              *)  linetitle_size=$(($2)); shift;; esac ;;
         *)                  show_help 1;;
     esac
     shift
 done
 
-test "$colors" = "auto" && test -t && colors=on
+if test -t; then
+    test "$colors" = "auto" && colors=on
+    if test "$max_columns" = "auto"; then
+        max_columns=$COLUMNS
+        if [ -x "`which tput`" ]; then
+            tmp=$(tput cols columns | head -n1)
+            if test $? -eq 0 -a -n "$tmp" -a "$tmp" != "$COLUMNS"; then
+                unset COLUMNS
+                export COLUMNS=$tmp
+            fi
+        fi
+    fi
+elif test "$max_columns" = "auto"; then
+    max_columns=0
+fi
 if test "$colors" != "on";  then
     color_esc=
     color_end=
@@ -185,9 +213,26 @@ print_table() {
     local line_items="$5"
     local linesz=$6
     local stats="MR TR MD TD DC"
-    local h n cut
-
+    local h n cut i
     local nstat=`echo "$stats" | wc -w`
+
+    case "$colsz" in ''|auto|0|-*)
+        i=$((nstat*3+nstat-1))
+        for h in "${col_header}" ${col_items}; do
+            cut=${#h}; cut=$((cut+2))
+            test $cut -gt $i && i=$cut
+        done
+        colsz=$i ;;
+    esac
+    case "$linesz" in ''|auto|0|-*)
+        i=4
+        for n in "${line_header}" ${line_items}; do
+            cut=${#n}; cut=$((cut+1))
+            test $cut -gt $i && i=$cut
+        done
+        linesz=$i ;;
+    esac
+
     local statsz=$(((colsz-1)/(nstat+1)))
     local statpad=$((colsz-(nstat*statsz)-(nstat-1)))
 
@@ -274,8 +319,8 @@ fi
 # Parse & display
 parse_logs
 if test "$hostlayout" = "col"; then
-    print_table "/host " "$hosts" 19 "proj/" "$names" 15
+    print_table "/host " "$hosts" $coltitle_size "proj/" "$names" $linetitle_size # 19 15
 else
-    print_table "/proj " "$names" 19 "host/" "$hosts" 10
+    print_table "/proj " "$names" $coltitle_size "host/" "$hosts" $linetitle_size # 19 10
 fi
 
