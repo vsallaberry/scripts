@@ -277,7 +277,8 @@ print_table() {
     pheader_hcol
     for h in $line_items; do
         #printf "%-${colorhostsz}s" "`printf ${color_host}${h}${color_rst}`"
-        printf "${color_host}%-${linesz}s${color_rst}" "`echo ${h} | cut -c -$linesz`"
+        case "`fmtdata ${h} '' ''`" in *ON*) i='*';; *) i=;; esac
+        printf "${color_host}%-${linesz}s${color_rst}" "`echo \"${h}$i\" | cut -c -$linesz`"
         cut=$statsz
 
         for n in $col_items; do
@@ -288,7 +289,7 @@ print_table() {
 
         if test -z "$shorttable"; then
             # print build timings
-            printf "|\n%-${colorlinesz}s" `fmtdata ${h} '' '' ${linesz}`
+            printf "|\n%-${linesz}s"
             for n in $col_items; do
                 printf "|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s%-${statpad}s" \
                        `fmtdata $h $n MR_secs $cut` `fmtdata $h $n TR_secs $cut` `fmtdata $h $n MD_secs $cut` `fmtdata $h $n TD_secs $cut` `fmtdata $h $n DC_secs $cut`
