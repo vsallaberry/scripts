@@ -50,7 +50,7 @@ color_proj="${color_esc}00;36${color_end}"
 color_ts="${color_esc}02;37${color_end}"
 color_delta="${color_esc}00;34${color_end}"
 
-# Include specific part if existing, and the option '-D,--default' is not given.
+# Include specific part if existing, and, if the option '-D,--default' is not given.
 for p in $@; do case $p in -D|--default) vtablespec=; break ;; esac; done
 if test -e "$vtablespec"; then
    . "$vtablespec"
@@ -65,9 +65,9 @@ fi
 show_help() {
     exit_status=$1
     echo "Usage: $0 [-h] [-L] [-D] [-n] [-C] [-v] [-s]"
-    echo "  -L, --logdir         : where to find logs, default: CWD."
-    echo "  -D, --default        : do not not specific vtable_spec.sh script"
-    echo "  -n, --no-fetch       : just parse existing log without fetching them"
+    echo "  -L, --logdir         : where to find logs, default: CWD,CWD/logs."
+    echo "  -D, --default        : do not load specific vtable_spec.sh script"
+    echo "  -n, --no-fetch       : just parse existing logs without fetching them"
     echo "  -C, --color [on|off] : force colors to off or on, default: auto."
     echo "  -v, --verbose        : verbose the table"
     echo "  -s, --short          : short table"
@@ -102,7 +102,7 @@ if test "$colors" != "on";  then
     color_delta=
 fi
 
-# Parse logs, which must contains in 30 last lines in order or disorder each of these:
+# Parse logs, which must contain in their 20 last lines each of these (in order or disorder):
 #builddate : YYYY.MM.DD_HH-MM-SS  # prefered format but not mandatory.
 #dist      : projv1_YYYY...       # prefered format but not mandatory. sarch for git rev, then date, then version
 #make      : OK (8s)
@@ -110,7 +110,7 @@ fi
 #make_dbg  : OK (20s)
 #run_dbg   : OK (3s)
 #distclean : KO (999s)
-# this produce variables 'data_<host>_<proj>_<MD|MR|TD|TR|DC|DT|NN>[_secs]'
+# this will produce variables 'data_<host>_<proj>_<MD|MR|TD|TR|DC|DT|NN>[_secs]'
 parse_logs() {
     local h n sep w w1 w2 w3
     for h in $hosts; do
@@ -250,6 +250,7 @@ print_table() {
 if test -n "$fetch"; then
     fetch_logs
 fi
+# Parse & display
 parse_logs
 print_table
 
