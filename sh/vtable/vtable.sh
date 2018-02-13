@@ -25,7 +25,7 @@ mypath="${mydir}/$(basename $0)"
 
 logdir=$curdir
 if ! ls $curdir/*.log >/dev/null 2>&1; then
-    for d in "$curdir/logs" "$mydir/logs"; do
+    for d in "$curdir/logs" "$mydir" "$mydir/logs"; do
         test -d "$d" -o -d "`readlink $d 2>/dev/null`" \
             && ls "$d"/*.log >/dev/null 2>&1 && logdir="$d" && break ;
     done
@@ -35,6 +35,7 @@ fetch=yes
 colors=auto
 verbosetable=
 shorttable=
+hostlayout=line
 
 color_esc='\033['
 color_end='m'
@@ -59,18 +60,24 @@ else
     hosts="os2 ordi os3 oldone newone"
     fetch_logs() {
         echo "fetch_logs: not implemented"
+        for n in $names; do
+            for h in $hosts; do
+                test -e "$logdir/${n}_${h}.log" && eval "data_${h}__=ON"
+            done
+        done
     }
 fi
 
 show_help() {
     exit_status=$1
-    echo "Usage: $0 [-h] [-L] [-D] [-n] [-C] [-v] [-s]"
-    echo "  -L, --logdir         : where to find logs, default: CWD,CWD/logs."
-    echo "  -D, --default        : do not load specific vtable_spec.sh script"
-    echo "  -n, --no-fetch       : just parse existing logs without fetching them"
-    echo "  -C, --color [on|off] : force colors to off or on, default: auto."
-    echo "  -v, --verbose        : verbose the table"
-    echo "  -s, --short          : short table"
+    echo "Usage: $0 [-h] [-L] [-D] [-n] [-C] [-v] [-s] [-H]"
+    echo "  -L, --logdir            : where to find logs, default: {CWD,sWD}/{,logs} (${logdir##$PWD/})."
+    echo "  -D, --default           : do not load specific vtable_spec.sh script (${vtablespec##$PWD/})"
+    echo "  -n, --no-fetch          : just parse existing logs without fetching them"
+    echo "  -C, --color [on|off]    : force colors to off or on, default: $colors."
+    echo "  -v, --verbose           : verbose the table"
+    echo "  -s, --short             : short table"
+    echo "  -H, --layout [line|col] : invert or set host layout, default: $hostlayout."
     exit $exit_status
 }
 while test -n "$1"; do
@@ -82,6 +89,10 @@ while test -n "$1"; do
         -C|--color)         case $2 in ''|-*) colors=on;; on|off) colors=$2; shift;; *) show_help 2;; esac ;;
         -v|--verbose)       verbosetable=yes;;
         -s|--short)         shorttable=yes;;
+        -H|--layout)        case $2 in '')        test "$hostlayout" = "line" && hostlayout=col || hostlayout=line;;
+                                       line|col)  hostlayout=$2; shift;;
+                                       *)         show_help 3;;
+                            esac;;
         *)                  show_help 1;;
     esac
     shift
@@ -136,11 +147,13 @@ parse_logs() {
 fmtdata() {
     local host=$1
     local proj=$2
+    test "$hostlayout" = "col" && { host=$2; proj=$1; }
     local key=$3
     local cut=${4}
     local data cutcmd
     local color="${color_def}"
     test -n "$cut" && cutcmd="cut -c -$cut" || cutcmd=cat
+
     # get value
     eval "data=\"\$data_${host}_${proj}_${key}\""
     # format
@@ -165,34 +178,41 @@ fmtdata() {
 
 # show table
 print_table() {
-    local h n cut
-    local hostsz=10
-    local namesz=19
+    local col_header="$1"
+    local col_items="$2"
+    local colsz=$3
+    local line_header="$4"
+    local line_items="$5"
+    local linesz=$6
     local stats="MR TR MD TD DC"
-    local nstat=5
-    local statsz=$(((namesz-1)/(nstat+1)))
-    local statpad=$((namesz-(nstat*statsz)-(nstat-1)))
-    local colorhostsz=$hostsz colornamesz=$namesz colorstatsz=$statsz
+    local h n cut
+
+    local nstat=`echo "$stats" | wc -w`
+    local statsz=$(((colsz-1)/(nstat+1)))
+    local statpad=$((colsz-(nstat*statsz)-(nstat-1)))
+
+    local colorlinesz=$linesz colorcolsz=$colsz colorstatsz=$statsz
     if test "$colors" = "on"; then
-        colorhostsz=$((colorhostsz+13))
-        colornamesz=$((colornamesz+13))
+        colorlinesz=$((colorlinesz+13))
+        colorcolsz=$((colorcolsz+13))
         colorstatsz=$((colorstatsz+13))
     fi
+
     pline_hcol() {
         cline=${1:-_}
         ccol=${2:-|}
         test -z "$shorttable" -a -z "$verbosetable" && tit=$3 || tit=; titsz=${#tit}
-        for ((i=0;i<hostsz;i=i+1)); do printf -- "$cline"; done
-        for n in $names; do printf "$ccol"; for ((i=0;i<namesz-titsz;i=i+1)); do printf -- "$cline"; done; printf -- "${color_delta}${tit}${color_rst}"; done
+        for ((i=0;i<linesz;i=i+1)); do printf -- "$cline"; done
+        for n in $col_items; do printf "$ccol"; for ((i=0;i<colsz-titsz;i=i+1)); do printf -- "$cline"; done; printf -- "${color_delta}${tit}${color_rst}"; done
         printf "$ccol\n"
     }
     pheader_hcol() {
         pline_hcol '' _
-        printf "%${hostsz}s" "`echo '/proj ' | cut -c -$hostsz`"
+        printf "%${linesz}s" "`echo "${col_header}" | cut -c -$linesz`"
         #for n in $names; do printf "| %-$((colornamesz-1))s" "`printf ${color_proj}${n}${color_rst}`"; done
-        for n in $names; do printf "| ${color_proj}%-$((namesz-1))s${color_rst}" "`echo ${n} | cut -c -$((namesz-1))`"; done
-        printf "|\n%-${hostsz}s" "`echo host/ | cut -c -$hostsz`"
-        for n in $names; do
+        for n in $col_items; do printf "| ${color_proj}%-$((colsz-1))s${color_rst}" "`echo ${n} | cut -c -$((colsz-1))`"; done
+        printf "|\n%-${linesz}s" "`echo \"$line_header\" | cut -c -$linesz`"
+        for n in $col_items; do
             for s in $stats; do printf "|%-${colorstatsz}s" "`printf ${color_hstat}${s}${color_rst}`"; done
             printf "%-${statpad}s"
         done
@@ -200,12 +220,12 @@ print_table() {
         pline_hcol
     }
     pheader_hcol
-    for h in $hosts; do
+    for h in $line_items; do
         #printf "%-${colorhostsz}s" "`printf ${color_host}${h}${color_rst}`"
-        printf "${color_host}%-${hostsz}s${color_rst}" "`echo ${h} | cut -c -$hostsz`"
+        printf "${color_host}%-${linesz}s${color_rst}" "`echo ${h} | cut -c -$linesz`"
         cut=$statsz
 
-        for n in $names; do
+        for n in $col_items; do
             # print build statuses
             printf "|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s%-${statpad}s" \
                    `fmtdata $h $n MR $cut` `fmtdata $h $n TR $cut` `fmtdata $h $n MD $cut` `fmtdata $h $n TD $cut` `fmtdata $h $n DC $cut`
@@ -213,8 +233,8 @@ print_table() {
 
         if test -z "$shorttable"; then
             # print build timings
-            printf "|\n%-${colorhostsz}s" `fmtdata ${h}`
-            for n in $names; do
+            printf "|\n%-${colorlinesz}s" `fmtdata ${h} '' '' ${linesz}`
+            for n in $col_items; do
                 printf "|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s%-${statpad}s" \
                        `fmtdata $h $n MR_secs $cut` `fmtdata $h $n TR_secs $cut` `fmtdata $h $n MD_secs $cut` `fmtdata $h $n TD_secs $cut` `fmtdata $h $n DC_secs $cut`
             done
@@ -222,14 +242,14 @@ print_table() {
 
         if test -n "$verbosetable"; then
             # Print build date and build dist name
-            cut=$((namesz-2))
-            printf "|\n%-${hostsz}s"
-            for n in $names; do
-                printf "|%-${colornamesz}s" "DT `fmtdata $h $n DT $cut`"
+            cut=$((colsz-2))
+            printf "|\n%-${linesz}s"
+            for n in $col_items; do
+                printf "|%-${colorcolsz}s" "DT `fmtdata $h $n DT $cut`"
             done
-            printf "|\n%-${hostsz}s"
-            for n in $names; do
-                printf "|%-${colornamesz}s" "NN`fmtdata $h $n NN $cut`"
+            printf "|\n%-${linesz}s"
+            for n in $col_items; do
+                printf "|%-${colorcolsz}s" "NN`fmtdata $h $n NN $cut`"
             done
         fi
 
@@ -253,5 +273,9 @@ if test -n "$fetch"; then
 fi
 # Parse & display
 parse_logs
-print_table
+if test "$hostlayout" = "col"; then
+    print_table "/host " "$hosts" 19 "proj/" "$names" 15
+else
+    print_table "/proj " "$names" 19 "host/" "$hosts" 10
+fi
 
