@@ -89,7 +89,7 @@ while test -n "$1"; do
         -C|--color)         case $2 in ''|-*) colors=on;; on|off) colors=$2; shift;; *) show_help 2;; esac ;;
         -v|--verbose)       verbosetable=yes;;
         -s|--short)         shorttable=yes;;
-        -H|--layout)        case $2 in '')        test "$hostlayout" = "line" && hostlayout=col || hostlayout=line;;
+        -H|--layout)        case $2 in ''|-*)     test "$hostlayout" = "line" && hostlayout=col || hostlayout=line;;
                                        line|col)  hostlayout=$2; shift;;
                                        *)         show_help 3;;
                             esac;;
