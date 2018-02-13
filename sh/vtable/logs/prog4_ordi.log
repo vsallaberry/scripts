@@ -1,0 +1,8 @@
+builddate : 2018-02-13_01h28
+dist      : prog4_2018-02-13_01h27
+make      : OK (8s)
+run       : OK (12s)
+make_dbg  : OK (11s)
+run_dbg   : OK (54s)
+distclean : OK (3s)
+
