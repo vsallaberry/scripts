@@ -17,6 +17,8 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 ############################################################################################
+# Display different values in a colored table. Initially written to display
+# summary about different build log files, on different machines.
 #
 mydir=$(dirname $0); curdir="`pwd`"; cd "${mydir}"; mydir="`pwd`"; cd "${curdir}"
 mypath="${mydir}/$(basename $0)"
@@ -24,7 +26,8 @@ mypath="${mydir}/$(basename $0)"
 logdir=$curdir
 if ! ls $curdir/*.log >/dev/null 2>&1; then
     for d in "$curdir/logs" "$mydir/logs"; do
-        test -d "$d" && ls "$d"/*.log >/dev/null 2>&1 && logdir="$d" && break ;
+        test -d "$d" -o -d "`readlink $d 2>/dev/null`" \
+            && ls "$d"/*.log >/dev/null 2>&1 && logdir="$d" && break ;
     done
 fi
 vtablespec="$mydir/vtable_spec.sh"
