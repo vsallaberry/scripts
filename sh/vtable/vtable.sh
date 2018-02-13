@@ -152,7 +152,7 @@ fmtdata() {
                             *)    color=${color_ko}; data="??";;
             esac ;;
         *_secs) color=${color_ts}; if test -n "$data"; then
-                if test -$data -gt $((99*60)); then data="$((data/3600))h"
+                if test $data -gt $((99*60)); then data="$((data/3600))h"
                 elif test $data -gt 999; then data="$((data/60))m"; fi; fi ;;
         NN) data="`echo \"$data\" | sed -e 's/.*[^a-fA-F0-9]\([a-fA-F0-9][a-fA-F0-9][a-fA-F0-9][a-fA-F0-9][a-fA-F0-9][a-fA-F0-9][a-fA-F0-9]\).*/@\1/' \
                                      -e 's/.*\([0-9][0-9][0-9][0-9]\)/:\1/' \
