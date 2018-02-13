@@ -1,6 +1,6 @@
 #!/bin/sh
 # Copyright (C) 2018 Vincent Sallaberry
-# vtable.sh <https://github.com/vsallaberry/scripts>
+# vtable.sh <https://github.com/vsallaberry/scripts/sh/vtable>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

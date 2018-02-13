@@ -16,9 +16,12 @@
 
 ## Details
 - sh/prompt/prompt.sh is a sh script initializing sh dynamic colored prompt.
+- sh/vtable/vtable.sh: displaying differents values in a colored table initially
+for displaying summary about different build log files, tested with bash (even if
+the header is !/bin/sh)
 
 ## Contact
-[vsallaberry@gmail.com]
+[vsallaberry@gmail.com]  
 <https://github.com/vsallaberry/scripts>
 
 ## License
