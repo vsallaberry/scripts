@@ -1,7 +1,7 @@
 builddate : 2018.02.13_01h22
 dist      : tmp_prog_2018-02-13_00h26
 make      : OK (8s)
-run       : KO (0s)
+run       : SEGV (2s)
 make_dbg  : OK (20s)
 run_dbg   : OK (59s)
 distclean : OK (999s)

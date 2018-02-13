@@ -148,7 +148,8 @@ fmtdata() {
         MD|MR|TD|TR|DC)
             case "$data" in "KO") color=${color_ko};;
                             "OK") color=${color_ok};;
-                            ?)    color=${color_ko}; data="??";;
+                            '')   ;;
+                            *)    color=${color_ko}; data="??";;
             esac ;;
         *_secs) color=${color_ts}; if test -n "$data"; then
                 if test -$data -gt $((99*60)); then data="$((data/3600))h"
