@@ -1,6 +1,7 @@
-builddate : 2018.02.13_01h22
+builddate : 2018.02.13_01h22 1518481320
+distdate  : 2018-02-13_00h26 (1513121160)
 dist      : tmp_prog_2018-02-13_00h26
-make      : OK (8s)
+make      : OK (219600s)
 run       : SEGV (1258s)
 make_dbg  : OK (5941s)
 run_dbg   : OK (5940)

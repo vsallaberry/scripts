@@ -31,6 +31,7 @@ if ! ls $curdir/*.log >/dev/null 2>&1; then
     done
 fi
 vtablespec="$mydir/vtable_spec.sh"
+sourceonly=
 fetch=yes
 colors=auto
 verbosetable=
@@ -76,6 +77,7 @@ fi
 show_help() {
     exit_status=$1
     echo "Usage: $0 [options]"
+    echo "  -S, --source-only         : do nothing except parsing cmdline, used for script sourcing."
     echo "  -L, --logdir folder       : where to find logs, default: {CWD,sWD}/{,logs} (${logdir##$PWD/})."
     echo "  -D, --default             : do not load specific vtable_spec.sh script (${vtablespec##$PWD/})"
     echo "  -n, --no-fetch            : just parse existing logs without fetching them"
@@ -88,11 +90,13 @@ show_help() {
     echo "  -t, --line-title-size [n] : set the size of a line title, default=$linetitle_size"
     echo "  -M, --col-title-max [n]   : set the max size of a column title, default=$coltitle_max"
     echo "  -m, --line-title-max [n]  : set the max size of a line title, default=$linetitle_max"
-    exit $exit_status
+    test -z "$sourceonly" && exit $exit_status
+    test "$exit_status" = 0
 }
 while test -n "$1"; do
     case $1 in
         -h|--help)          show_help 0;;
+        -S|--source-only)   sourceonly=yes;;
         -L|--logdir)        test -z "$2" && show_help 2; logdir=$2; shift;;
         -D|--default)       ;;
         -n|--no-fetch)      fetch=;;
@@ -149,24 +153,38 @@ if test "$colors" != "on";  then
     color_delta=
 fi
 
+timedelta() {
+    local data
+    data=$1
+    if test $data -gt $((3600*24*365)); then data="$((data/(3600*24*365)))Y"
+    elif test $data -gt $((3600*24*30)); then data="$((data/(3600*24*30)))M"
+    elif test $data -gt $((3600*24)); then data="$((data/(3600*24)))d"
+    elif test $data -gt 3600; then data="$((data/3600))h"
+    elif test $data -gt 60; then data="$((data/60))m"
+    else data="${data}s"; fi
+    printf "$data"
+}
+
 # Parse logs, which must contain in their 20 last lines each of these (in order or disorder):
-#builddate : YYYY.MM.DD_HH-MM-SS  # prefered format but not mandatory.
-#dist      : projv1_YYYY...       # prefered format but not mandatory. sarch for git rev, then date, then version
+#builddate : YYYY.MM.DD_HH-MM-SS <seconds> # prefered format but not mandatory.
+#distdate  : YYYY.MM.DD_HH-MM-SS <seconds> # prefered format but not mandatory.
+#dist      : projv1_YYYY...                # prefered format but not mandatory. sarch for git rev, then date, then version
 #make      : OK (8s)
 #run       : KO (0s)
 #make_dbg  : OK (20s)
 #run_dbg   : OK (3s)
 #distclean : KO (999s)
-# this will produce variables 'data_<host>_<proj>_<MD|MR|TD|TR|DC|DT|NN>[_secs]'
+# this will produce variables 'data_<host>_<proj>_<MD|MR|TD|TR|DC|DT|NN|ND|DB|DD>[_secs]'
 parse_logs() {
-    local h n sep w w1 w2 w3
+    local h n sep w w1 w2 w3 tmp now
+    now=`date '+%s'`
     for h in $hosts; do
         for n in $names; do
             for w in `tail -n 20 "${logdir}/${n}_${h}.log" 2> /dev/null | grep -A20 -E '^builddate ' \
                     | sed -n \
                              -e 's/^make_dbg/MD/' -e 's/^make/MR/' -e 's/^run_dbg/TD/' -e 's/^run/TR/' -e 's/^distclean/DC/' \
-                             -e 's/^builddate/DT/' -e 's/^dist/NN/' \
-                             -e "s/^[[:space:]]*\([^[:space:]]*\)[[:space:]]*:[[:space:]]*\([^[:space:]]*\)[^(]*(*\([0-9]*\).*/\1,\2,\3/p" \
+                             -e 's/^builddate/DT/' -e 's/^distdate/ND/' -e 's/^dist/NN/' \
+                             -e "s/^[[:space:]]*\([^[:space:]]*\)[[:space:]]*:[[:space:]]*\([^[:space:]]*\)[^(0-9]*(*\([0-9]*\).*/\1,\2,\3/p" \
                     | sort`; do
                 sep=,
                 w1=${w%%$sep*}; w=${w#*$sep}
@@ -175,6 +193,9 @@ parse_logs() {
                 eval "data_${h}_${n}_${w1}=${w2}"
                 eval "data_${h}_${n}_${w1}_secs=${w3}"
             done
+            # compute diff builddate and diff distdate
+            eval "tmp=\"\$data_${h}_${n}_DT_secs\""; test -z "$tmp" && eval "data_${h}_${n}_DB=-" || eval "data_${h}_${n}_DB=\"`timedelta $((now-tmp))`\""
+            eval "tmp=\"\$data_${h}_${n}_ND_secs\""; test -z "$tmp" && eval "data_${h}_${n}_DD=-" || eval "data_${h}_${n}_DD=\"`timedelta $((now-tmp))`\""
         done
     done
 }
@@ -186,7 +207,7 @@ fmtdata() {
     test "$hostlayout" = "col" && { host=$2; proj=$1; }
     local key=$3
     local cut=${4}
-    local data cutcmd
+    local data cutcmd tmp
     local color="${color_def}"
     test -n "$cut" && cutcmd="cut -c -$cut" || cutcmd=cat
 
@@ -200,15 +221,24 @@ fmtdata() {
                             '')   ;;
                             *)    color=${color_ko}; data="??";;
             esac ;;
-        *_secs) color=${color_ts}; if test -n "$data"; then
-                if test $data -gt $((99*60)); then data="$((data/3600))h"
-                elif test $data -gt 999; then data="$((data/60))m"; fi; fi ;;
+        *_secs) if test -n "$data"; then
+                    data=$((data)); suf=; color=${color_ts};
+                    if test $data -ge $((100*3600)); then data=""; suf='>'
+                    elif test $data -ge $((100*60)); then data="$((data/3600))"; suf="h"
+                    elif test $data -gt 99; then data="$((data/60))"; suf="m"; fi
+                    if test -n "$cut" -a -n "$data" -a -n "$suf" && test $cut -lt 3; then
+                        if test $data -ge 100; then data=; suf='>'
+                        elif test $data -ge 10; then data=$((data/10)); test "$suf" = "h" && suf="^" || suf="*"; fi
+                    fi; data="${data}${suf}"
+                fi ;;
         NN) data="`echo \"$data\" | sed -e 's/.*[^a-fA-F0-9]\([a-fA-F0-9][a-fA-F0-9][a-fA-F0-9][a-fA-F0-9][a-fA-F0-9][a-fA-F0-9][a-fA-F0-9]\).*/@\1/' \
                                      -e 's/.*\([0-9][0-9][0-9][0-9]\)/:\1/' \
                                      -e 's/.*\([0-9][0-9]*\.[0-9][0-9]*[0-9.]*\).*/#v\1/' | $cutcmd`" ;;
         DT) data="`echo $data | $cutcmd`" ;;
+        DB) color=;;
+        DD) color=;;
     esac
-    data="${color}${data}${color_rst}"
+    test -n "${color}" && data="${color}${data}${color_rst}"
     printf "$data"
 }
 
@@ -225,7 +255,7 @@ print_table() {
     local nstat=`echo "$stats" | wc -w`
 
     case "$colsz" in ''|auto|0|-*)
-        i=$((nstat*3+nstat-1))
+        test -n "$shorttable" && i=$((nstat*2+nstat-1)) || i=$((nstat*3+nstat-1))
         for h in "${col_header}" ${col_items}; do
             cut=${#h}; cut=$((cut+2))
             test $cut -gt $i && i=$cut
@@ -254,17 +284,22 @@ print_table() {
     fi
 
     pline_hcol() {
+        local cline ccol tit h n i
+        local titsz=0
         cline=${1:-_}
         ccol=${2:-|}
-        test -z "$shorttable" -a -z "$verbosetable" && tit=$3 || tit=; titsz=${#tit}
+        h=$3 #test -z "$shorttable" -a -z "$verbosetable" && h=$3 || h=
         for ((i=0;i<linesz;i=i+1)); do printf -- "$cline"; done
-        for n in $col_items; do printf "$ccol"; for ((i=0;i<colsz-titsz;i=i+1)); do printf -- "$cline"; done; printf -- "${color_delta}${tit}${color_rst}"; done
+        for n in $col_items; do
+            test -n "$h" && { tit="`fmtdata $h $n DB`/`fmtdata $h $n DD`"; test "$tit" = "-/-" && tit=; titsz=${#tit}; }
+            printf "$ccol"; for ((i=0;i<colsz-titsz;i=i+1)); do printf -- "$cline"; done; printf -- "${color_delta}${tit}${color_rst}"
+        done
         printf "$ccol\n"
     }
     pheader_hcol() {
+        local n s
         pline_hcol '' _
         printf "%${linesz}s" "`echo "${col_header}" | cut -c -$linesz`"
-        #for n in $names; do printf "| %-$((colornamesz-1))s" "`printf ${color_proj}${n}${color_rst}`"; done
         for n in $col_items; do printf "| ${color_proj}%-$((colsz-1))s${color_rst}" "`echo ${n} | cut -c -$((colsz-1))`"; done
         printf "|\n%-${linesz}s" "`echo \"$line_header\" | cut -c -$linesz`"
         for n in $col_items; do
@@ -276,19 +311,18 @@ print_table() {
     }
     pheader_hcol
     for h in $line_items; do
-        #printf "%-${colorhostsz}s" "`printf ${color_host}${h}${color_rst}`"
         case "`fmtdata ${h} '' ''`" in *ON*) i='*';; *) i=;; esac
         printf "${color_host}%-${linesz}s${color_rst}" "`echo \"${h}$i\" | cut -c -$linesz`"
         cut=$statsz
 
+        # print build statuses
         for n in $col_items; do
-            # print build statuses
             printf "|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s%-${statpad}s" \
                    `fmtdata $h $n MR $cut` `fmtdata $h $n TR $cut` `fmtdata $h $n MD $cut` `fmtdata $h $n TD $cut` `fmtdata $h $n DC $cut`
         done
 
+        # print build timings
         if test -z "$shorttable"; then
-            # print build timings
             printf "|\n%-${linesz}s"
             for n in $col_items; do
                 printf "|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s|%-${colorstatsz}s%-${statpad}s" \
@@ -296,42 +330,43 @@ print_table() {
             done
         fi
 
+        # Print build date and build dist name
         if test -n "$verbosetable"; then
-            # Print build date and build dist name
-            cut=$((colsz-2))
             printf "|\n%-${linesz}s"
             for n in $col_items; do
-                printf "|%-${colorcolsz}s" "DT `fmtdata $h $n DT $cut`"
+                printf "|%-${colorcolsz}s" "DT `fmtdata $h $n DT $((colsz-3))`"
             done
             printf "|\n%-${linesz}s"
             for n in $col_items; do
-                printf "|%-${colorcolsz}s" "NN`fmtdata $h $n NN $cut`"
+                printf "|%-${colorcolsz}s" "NN`fmtdata $h $n NN $((colsz-2))`"
             done
         fi
 
         printf "|\n"
-        pline_hcol '' '' "?/?" # TODO
+        pline_hcol '' '' "${h}"
     done
     # print glossary
     test -z "$shorttable" \
     && echo "\n${color_ts}DT${color_rst}:builddate ${color_ts}NN${color_rst}:distname ${color_hstat}MR${color_rst}:make "\
             "${color_hstat}TR${color_rst}:test ${color_hstat}MD${color_rst}:make_dbg ${color_hstat}TD${color_rst}:test_dbg "\
             "${color_hstat}DC${color_rst}:distclean"
-    test -z "$shorttable" -a -z "$verbosetable" \
+    test -z "$shorttable" \
     && echo "______Bt/Dt| ${color_delta}B${color_rst}:builddelta ${color_delta}D${color_rst}:distdelta "\
             "t:${color_delta}M${color_rst}(onth),${color_delta}d${color_rst}(ay),${color_delta}h${color_rst}(our),"\
             "${color_delta}m${color_rst}(in),${color_delta}s${color_rst}(ec)"
 }
 
-# fetch logs
-if test -n "$fetch"; then
-    fetch_logs
-fi
-# Parse & display
-parse_logs
-if test "$hostlayout" = "col"; then
-    print_table "/host " "$hosts" $coltitle_size "proj/" "$names" $linetitle_size # 19 15
-else
-    print_table "/proj " "$names" $coltitle_size "host/" "$hosts" $linetitle_size # 19 10
+if test -z "$sourceonly"; then
+    # fetch logs
+    if test -n "$fetch"; then
+        fetch_logs
+    fi
+    # Parse & display
+    parse_logs
+    if test "$hostlayout" = "col"; then
+        print_table "/host " "$hosts" $coltitle_size "proj/" "$names" $linetitle_size # 19 15
+    else
+        print_table "/proj " "$names" $coltitle_size "host/" "$hosts" $linetitle_size # 19 10
+    fi
 fi
 
