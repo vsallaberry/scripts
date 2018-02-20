@@ -124,7 +124,7 @@ while test -n "$1"; do
     shift
 done
 
-if test -t; then
+if test -t 1; then
     test "$colors" = "auto" && colors=on
     if test "$max_columns" = "auto"; then
         max_columns=$COLUMNS
