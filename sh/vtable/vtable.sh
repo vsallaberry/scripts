@@ -162,7 +162,7 @@ timedelta() {
     elif test $data -gt 3600; then data="$((data/3600))h"
     elif test $data -gt 60; then data="$((data/60))m"
     else data="${data}s"; fi
-    printf "$data"
+    printf -- "$data"
 }
 
 # Parse logs, which must contain in their 20 last lines each of these (in order or disorder):
@@ -183,7 +183,7 @@ parse_logs() {
             for w in `tail -n 20 "${logdir}/${n}_${h}.log" 2> /dev/null | grep -A20 -E '^builddate ' \
                     | sed -n \
                              -e 's/^make_dbg/MD/' -e 's/^make/MR/' -e 's/^run_dbg/TD/' -e 's/^run/TR/' -e 's/^distclean/DC/' \
-                             -e 's/^builddate/DT/' -e 's/^distdate/ND/' -e 's/^dist/NN/' \
+                             -e 's/^make_obj/MO/' -e 's/^run_obj/TO/' -e 's/^builddate/DT/' -e 's/^distdate/ND/' -e 's/^dist/NN/' \
                              -e "s/^[[:space:]]*\([^[:space:]]*\)[[:space:]]*:[[:space:]]*\([^[:space:]]*\)[^(0-9]*(*\([0-9]*\).*/\1,\2,\3/p" \
                     | sort`; do
                 sep=,
@@ -216,10 +216,10 @@ fmtdata() {
     # format
     case "${key}" in
         MD|MR|TD|TR|DC)
-            case "$data" in "KO") color=${color_ko};;
-                            "OK") color=${color_ok};;
-                            '')   ;;
-                            *)    color=${color_ko}; data="??";;
+            case "$data" in "KO"*) color=${color_ko};;
+                            "OK"*) color=${color_ok};;
+                            '')    ;;
+                             *)    color=${color_ko}; data="??";;
             esac ;;
         *_secs) if test -n "$data"; then
                     data=$((data)); suf=; color=${color_ts};
@@ -239,7 +239,7 @@ fmtdata() {
         DD) color=;;
     esac
     test -n "${color}" && data="${color}${data}${color_rst}"
-    printf "$data"
+    printf -- "$data"
 }
 
 # show table
