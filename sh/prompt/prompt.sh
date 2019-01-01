@@ -1,6 +1,6 @@
 #!/bin/sh
 # --
-# Copyright (C) 2017-2018 Vincent Sallaberry
+# Copyright (C) 2017-2019 Vincent Sallaberry
 # scripts/sh/prompt.sh <https://github.com/vsallaberry/scripts>
 # ps1_open v5.0.4 SH ~generic prompt.
 #

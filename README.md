@@ -27,5 +27,5 @@ machines. Tested only with bash (even if the header is !/bin/sh).
 ## License
 GPLv3 or later. See LICENSE file.
 
-CopyRight : Copyright (C) 2017-2018 Vincent Sallaberry
+CopyRight : Copyright (C) 2017-2019 Vincent Sallaberry
 
