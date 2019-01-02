@@ -3,7 +3,7 @@
 --------------
 
 * [Overview](#overview)
-* [System Requirments](#systemrequirments)
+* [System Requirements](#system-requirements)
 * [Details](#details)
 * [Contact](#contact)
 * [License](#license)
