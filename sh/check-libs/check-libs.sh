@@ -19,7 +19,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 # --
 ##
-### check_libs created by Vincent Sallaberry.
+### check_libs created by Vincent Sallaberry, for MacOS only.
 ##
 #### BUGS
 ## 1. multithread not woking well (no speed gain)
@@ -96,7 +96,7 @@ log() {
 }
 show_help() {
     log 1 "Usage: `basename "$0"` [-hfuysV] [-d|-a pattern] [-l level] [prefix]"
-    log 1 "  This scripts analyzes libs and binaries of a given prefix"
+    log 1 "  This script, running on MacOS only, analyzes libs and binaries of a given prefix"
     log 1 "  * checks links validity"
     log 1 "  * checks universal architectures"
     log 1 "  * checks for external dependencies"
