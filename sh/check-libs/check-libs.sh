@@ -20,6 +20,8 @@
 # --
 ##
 ### check_libs created by Vincent Sallaberry, for MacOS only.
+### has been writeen to check wheter an isolated development prefix (eg:/usr/local/wine)
+### was autonomous, and had required architectures.
 ##
 #### BUGS
 ## 1. multithread not woking well (no speed gain)
