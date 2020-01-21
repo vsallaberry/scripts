@@ -31,18 +31,27 @@
 ## 2. FIXME: FIXME_libs_deps
 ##
 ###
-VERSION=0.7.1
+VERSION=0.7.2
 loglevel=2
-prefix=
+prefix=/usr/local/wine
 find_prefix="/{bin,lib,libexec,bin64,lib64,libexec64}"
 find_all=
 check_univ=yes
 check_a_has_dylib=yes
 check_dylib_has_a=
+wine_excludes=yes
 ignoredepon_libs=
-ignoredepon_libs_def="/*|@rpath/libwine.1.dylib|/usr/lib/libSystem.B.dylib|/System/Library/Frameworks/*"
+ignoredepon_for_wine="|@rpath/libwine.1.dylib"
+ignoredepon_libs_def='${prefix}/*|/usr/lib/libSystem.B.dylib|/System/Library/Frameworks/*${ignoredepon_for_wine}'
+ignoredepon_for_wine_def=${ignoredepon_for_wine}
 ignorearch_for=
-ignorearch_for_def="/lib*/wine/*"
+ignorearch_for_wine='|${prefix}/lib*/wine/*|${prefix}/bin/widl|${prefix}/bin/wine|${prefix}/bin/wine-preloader|${prefix}/bin/winebuild|${prefix}/bin/winedump|${prefix}/bin/winegcc|${prefix}/bin/wineserver|${prefix}/bin/wmc|${prefix}/bin/wrc'
+ignorearch_for_def='${prefix}/lib64/*|${prefix}/bin64/*${ignorearch_for_wine}'
+ignorearch_for_wine_def=${ignorearch_for_wine}
+ignore_dyn_and_static=
+ignore_dyn_and_static_def='""${ignore_dyn_and_static_for_wine}'
+ignore_dyn_and_static_for_wine=
+ignore_dyn_and_static_for_wine_def='|${prefix}/lib*/wine/*.a'
 
 otool=/Library/Developer/CommandLineTools/usr/bin/otool
 test -x "$otool" || otool=`which otool`
@@ -99,7 +108,7 @@ log() {
     fi
 }
 show_help() {
-    log 1 "Usage: `basename "$0"` [-hfuysV] [-d|-a pattern] [-l level] [prefix]"
+    log 1 "Usage: `basename "$0"` [-hfuywsV] [-d|-a pattern] [-l level] [prefix]"
     log 1
     log 1 "This script, running on MacOS only, analyzes libs and binaries of a given prefix"
     log 1 "* checks links validity"
@@ -109,14 +118,16 @@ show_help() {
     log 1 "  -f                 toggle force scanning all in <prefix> rather than <prefix>${find_prefix} (current:${find_all})"
     log 1 "  -u                 toggle check universal binaries (current:${check_univ})"
     log 1 "  -d pattern         ignore dependencies on given libs (bash case pattern)"
-    log 1 "                       current:${ignoredepon_libs:-<prefix>${ignoredepon_libs_def}}"
+    log 1 "                       current:${ignoredepon_libs:-`eval "echo \"${ignoredepon_libs_def}\""`}"
     log 1 "  -a pattern         ignore universal checks on pattern (bash case pattern)"
-    log 1 "                       current:${ignorearch_for:-<prefix>${ignorearch_for_def}}"
+    log 1 "                       current:${ignorearch_for:-`eval "echo \"${ignorearch_for_def}\""`}"
     log 1 "  -y                 toggle check on dylibs without .a (current:${check_dylib_has_a})"
     log 1 "  -s                 toggle check on .a without .dylib (current:${check_a_has_dylib})"
+    log 1 "  -w                 toggle wine exclusions (current:`test -n "${ignoredepon_for_wine}" && echo yes`)"
     log 1 "  -h, --help         show help"
     log 1 "  -l, --level level  set log level (current:${loglevel})"
     log 1 "  -V, --version      show version"
+    log 1 "  <prefix>           scan given prefix (current:${prefix})"
     log 1
     exit $1
 }
@@ -137,6 +148,9 @@ while test $# -gt 0; do
                        ignoredepon_libs=$arg; $shift;;
                     a) test -z "${arg}" && { log 1 "${color_ko}error${color_rst}: missing argument for option -${opt}"; exit 3; }
                        ignorearch_for=${arg}; $shift;;
+                    w) test -n "${ignorearch_for_wine}" && { ignorearch_for_wine=; ignoredepon_for_wine=; ignore_dyn_and_static_for_wine=; } \
+                                                        || { ignorearch_for_wine=${ignorearch_for_wine_def}; ignoredepon_for_wine=${ignoredepon_for_wine_def}
+                                                             ignore_dyn_and_static_for_wine=${ignore_dyn_and_static_for_wine_def}; };;
                     l|-level) test -z "${arg}" || ! test "$arg" -ge 0 2>/dev/null && { log 1 "${color_ko}error${color_rst}: invalid argument '$arg' for option -${opt}"; exit 4; }
                         loglevel=${arg}; $shift;;
                     V|-version) log 1 "`basename "$0"` $VERSION [Copyright (C) 2020 Vincent Sallaberry]"; exit 0;;
@@ -148,10 +162,10 @@ while test $# -gt 0; do
     shift
 done
 
-prefix=${prefix:-/usr/local/wine}
 test -n "${find_all}" && find_prefix="${prefix}" || find_prefix="`eval echo "${prefix}${find_prefix}"`"
-ignorearch_for=${ignorearch_for:-${prefix}${ignorearch_for_def}}
-ignoredepon_libs=${ignoredepon_libs:-${prefix}${ignoredepon_libs_def}}
+ignorearch_for=${ignorearch_for:-`eval "echo \"${ignorearch_for_def}\""`}
+ignoredepon_libs=${ignoredepon_libs:-`eval "echo \"${ignoredepon_libs_def}\""`}
+ignore_dyn_and_static=${ignore_dyn_and_static:-`eval "echo \"${ignore_dyn_and_static_def}\""`}
 
 if ! which -s "${greadlink}"; then
     greadlink() {
@@ -314,8 +328,10 @@ find ${find_prefix} \! -type d                                        \
 
     # Check universal architectures of given libraries
     log 2 "\n+ Checking universal architecture..."
+    log 2 "${ignore_dyn_and_static}"
     for f in `echo ${bins} | tr ' ' '\n' | sort | uniq`; do
-        case "$f" in *.a)       test -z "$check_a_has_dylib" -o -e "${f%.a}.dylib";;
+        case "$f" in #${ignore_dyn_and_static}) true;;
+                     *.a)       test -z "$check_a_has_dylib" -o -e "${f%.a}.dylib";;
                      *.dylib)   test -z "$check_dylib_has_a" -o -e "${f%.dylib}.a";;
                      *)         true;;
         esac || { log 1 "!! ${color_a_dylib}.dylib/.a missing${color_rst} for ${color_which}$f${color_rst}"; }
