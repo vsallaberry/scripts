@@ -24,14 +24,14 @@
 ### was autonomous, and had required architectures.
 ##
 #### BUGS
-## 1. multithread not woking well (no speed gain)
-##    to enable MT use the commented lines # FIXME MT WIP
+## ?
 ##
 ### TODO
-## 1. FIXME: FIXME_libs_deps
+## 1. Remove single Thread code : (comments '# Single_Thread_code')
+## 2. FIXME: FIXME_libs_deps
 ##
 ###
-VERSION=0.6.0
+VERSION=0.7.0
 loglevel=2
 prefix=
 find_prefix="/{bin,lib,libexec,bin64,lib64,libexec64}"
@@ -54,8 +54,9 @@ readlink=/usr/bin/readlink
 test -x "$readlink" || readlink=`which readlink`
 
 greadlink=__use_builtin__
-n_threads=1
-#n_threads=2
+n_threads=`sysctl hw.ncpu | awk '{ print $2 }'`
+test $((n_threads)) -lt 1 && n_threads=1
+#n_threads=1
 
 if test -t 2; then
     progress=yes
@@ -222,17 +223,19 @@ printf "${color_cmderr}" /dev/stderr
         for(( 1 ; i_file < end ; i_file=i_file+1 )); do
             f=${files[$i_file]}
 
-            #printf "\nFILE #$((i_file+1)) '$f' LIB '$f'\n" >> /tmp/chk1
-            #printf "${f} ${CHK_INTERNAL}\n" # FIXME MT WIP
-            printf "${CHK_INTERNAL}\n"
+            printf "${f} ${CHK_INTERNAL}\n"
+            #printf "${CHK_INTERNAL}\n" # Single_Thread_code
 
             case "$f" in *.la)  ;;
                          *.a)
-                             #echo "${f} ${f}:";; # FIXME MT WIP
-                             echo "${f}:";;
+                             echo "${f} ${f}:";;
+                             #echo "${f}:";; # Single_Thread_code
                          *)
-                             #"${otool}" -L "${f}" 2>/dev/null | while { l=; read l desc; } || test -n "$l"; do echo "$f $l"; done #sed -ne "s|^[[:space:]]*\(.\)|${f} \1|p";; # FIXME MT WIP
-                             "${otool}" -L "${f}" 2>/dev/null
+                             "${otool}" -L "${f}" 2>/dev/null | while { l=; read l desc; } || test -n "$l"; do echo "$f $l"; done #sed -ne "s|^[[:space:]]*\(.\)|${f} \1|p";;
+                             ##"${otool}" -L "${f}" 2>/dev/null | /usr/bin/sed -ne "s|^[[:space:]]*\([^[:space:]][^[:space:]]*\).*|${f} \1|p";;
+                             ##"${otool}" -L "${f}" 2>/dev/null | /usr/bin/awk "{ print \"${f} \" \$1 }";;
+                             #####{ "${otool}" -L "${f}" 2>/dev/null && echo; } | while read l desc; do echo "$f $l"; done #sed -ne "s|^[[:space:]]*\(.\)|${f} \1|p";;
+                             #"${otool}" -L "${f}" 2>/dev/null # Single_Thread_code
             esac
 
         done
@@ -278,8 +281,8 @@ printf "${color_cmderr}" /dev/stderr
 
     i_file=0; oldratio=-1; tsp=`date '+%s'`; print_ratio 0 $n_files
 
-    #while read f l desc; do ### FIXME MT wip
-    f=; while read l desc; do
+    while read f l desc; do
+    #f=; while read l desc; do # Single_Thread_code
         case "${l}" in
             ${CHK_INTERNAL})
                 i_file=$((i_file+1))
