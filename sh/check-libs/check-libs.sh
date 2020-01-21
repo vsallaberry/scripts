@@ -28,11 +28,10 @@
 ##    to enable MT use the commented lines # FIXME MT WIP
 ##
 ### TODO
-## 1. FIXME_merge_link_and_search : remove it and for 'merge' behavior
-## 2. FIXME: FIXME_libs_deps
+## 1. FIXME: FIXME_libs_deps
 ##
 ###
-VERSION=0.5.3
+VERSION=0.6.0
 loglevel=2
 prefix=
 find_prefix="/{bin,lib,libexec,bin64,lib64,libexec64}"
@@ -117,13 +116,13 @@ show_help() {
     log 1
     exit $1
 }
-while test -n "$1"; do
+while test $# -gt 0; do
     case "$1" in
         -*) args=${1#-}                 # remove heading '-' from current argument
             while test -n "$args"; do   # loop on each option in current argument
                 opt=${args}; args=${args#?}; test -n "$opt" -a -z "${opt##-*}" && args= || opt=${opt%$args} # get opt (1 char or -...), :first char in args, shift args by 1 character
                 test -n "$args" && { arg=${args}; shift=break; } || { arg=$2; shift=shift; }    # prepare argument of opt, user call '$shift' if arg is used.
-                #echo "opt:'$opt' args:'$args' arg:'$arg' shift:'$shift'" #FIXME
+                log 5 "opt:'$opt' args:'$args' arg:'$arg' shift:'$shift' #=$#"
                 case "${opt}" in
                     h|-help) show_help 0;;
                     f) test -n "${find_all}" && find_all= || find_all=yes;;
@@ -132,15 +131,15 @@ while test -n "$1"; do
                     s) test -n "${check_a_has_dylib}" && check_a_has_dylib= || check_a_has_dylib=yes;;
                     d) test -z "${arg}" && { log 1 "${color_ko}error${color_rst}: missing argument for option -${opt}"; exit 2; }
                        ignoredepon_libs=$arg; $shift;;
-                    a) test -z "${arg}" && { log 1 "${color_ko}error${color_rst}: missing argument for option -${opt}"; exit 2; }
+                    a) test -z "${arg}" && { log 1 "${color_ko}error${color_rst}: missing argument for option -${opt}"; exit 3; }
                        ignorearch_for=${arg}; $shift;;
-                    l|-level) test -z "${arg}" || ! test "$arg" -ge 0 2>/dev/null && { log 1 "${color_ko}error${color_rst}: invalid argument for option -${opt}"; exit 2; }
+                    l|-level) test -z "${arg}" || ! test "$arg" -ge 0 2>/dev/null && { log 1 "${color_ko}error${color_rst}: invalid argument '$arg' for option -${opt}"; exit 4; }
                         loglevel=${arg}; $shift;;
                     V|-version) log 1 "`basename "$0"` $VERSION [Copyright (C) 2020 Vincent Sallaberry]"; exit 0;;
-                    *) log 1 "${color_ko}error${color_rst}: unknown option '-${opt}'"; show_help 1;;
+                    *) log 1 "${color_ko}error${color_rst}: unknown option '-${opt}'\n"; show_help 1;;
                 esac; done ;;
-        *) test -n "$prefix" && { log 1 "${color_ko}error${color_rst}: only one prefix should be given"; show_help 1; }
-           prefix=$1;;
+        *) test -n "$prefix" && { log 1 "${color_ko}error${color_rst}: only one prefix should be given"; exit 5; }
+           test -d "$1" && prefix=$1 || { log 1 "${color_ko}error${color_rst}: prefix '$1' must be a valid directory."; exit 6; };;
     esac
     shift
 done
@@ -166,7 +165,7 @@ if ! which -s "${greadlink}"; then
             test -e "${file}" || return 1
             newfile=${file}; while newfile=`"$readlink" "${newfile}"`; do
                 case "${newfile}" in /*) ;; *) newfile="`dirname "${file}"`/${newfile}";; esac
-                test "${newfile}" != "${file}" || return 1
+                test "${newfile}" = "${file}" && return 1 # check recursive link
                 file=${newfile}
             done
             case "${file}" in /*) ;; "") ;; *) file="`pwd`/${file}";; esac
@@ -177,7 +176,6 @@ fi
 
 i_pattern=0; find_patterns=; declare -a find_patterns
 add_find_patterns() { for p in "$@"; do find_patterns[$i_pattern]="${p}"; i_pattern=$((i_pattern+1)); done; }
-
 #add_find_patterns "-and" "!" "-path" "${prefix}/lib*/wine/*"
 
 varname() {
@@ -190,36 +188,16 @@ bins=
 CHK_INTERNAL='#///CHK_INTERNAL//#'
 files=; n_files=0; declare -a files
 
-FIXME_merge_link_and_search=" "
-#FIXME_merge_link_and_search=
-
-#log 2 "+ Checking symbolic links..."
-printf "${color_cmderr}"
-test -z "${FIXME_merge_link_and_search}" && for f in `find ${find_prefix} -type l \
-               -and \( -name '*.dylib' -o -name '*.a' -o -name '*.so'   \
-                       -o -name '*.dll' -o -perm '+u=x' \) \
-               `; do
-    if target=`greadlink -f "$f" 2>/dev/null` && test -e "${target}"; then
-        # add symbolic link to list because it points to different folder than prefix
-        case "${target}" in "${prefix}"/*) ;; *) files[$n_files]="$f"; n_files=$((n_files+1));; esac
-    else
-        log 1 "${color_rst}!! ${color_badlink}invalid link${color_rst} '${color_which}$f${color_rst}' (-> ${target})${color_cmderr}"
-    fi
-done
-printf "${color_rst}"
-
 log 2 "+ Scanning '${prefix}'..."
 printf "${color_cmderr}" /dev/stderr
 
 { find ${find_prefix} \! -type d                                        \
-    ${FIXME_merge_link_and_search:- \! -type l} \
     -and \( -name '*.dylib' -o -name '*.a' -o -name '*.so'              \
             -o -name '*.dll' -o -perm '+u=x' \); echo;     \
 } | {
     # build list of files
     while read f; do test -n "${f}" && {
         if test -L "${f}"; then
-            test -n "$FIXME_merge_link_and_search" && \
             if target=`greadlink -f "$f" 2>/dev/null` && test -e "${target}"; then
                 # add symbolic link to list because it points to different folder than prefix
                 case "${target}" in "${prefix}"/*) ;; *) files[$n_files]="$f"; n_files=$((n_files+1));; esac
@@ -311,19 +289,17 @@ printf "${color_cmderr}" /dev/stderr
                 continue;;
             *:)
                 l=${l%:}; f=$l
-                log 4 "\nOTOOL FILE $f LIB '$l'"
+                #log 4 "\nOTOOL FILE $f LIB '$l'"
                 test -n "$desc" && log 1 "!! ${color_warn}warning${color_rst}: wrong otool output for ${color_which}$f${color_rst}"
                 ;;
         esac
 
         #add lib/bin to list of binaries to be checked for architecture
-        case "$l" in *.la)  ;;
-                     *)     bins+=" `greadlink -f "$l"`";;
-        esac
+        bins+=" $l"; #`greadlink -f "$l"`";
 
         # Add library only if not excluded
-        eval "case \"$l\" in *.la|*.a|${ignoredepon_libs}) false;; *) true;; esac" \
-        && { libs_deps+=" $l"; eval "lib_`varname "$l"`+=\" $f\""; }
+        eval "case \"$l\" in *.la|*.a|${ignoredepon_libs}) false;; *.dylib|*.so|*.dll) true;; *) false;; esac" \
+            && { libs_deps+=" $l"; eval "lib_`varname "$l"`+=\" $f\""; }
     done
 
     wait
@@ -335,9 +311,9 @@ printf "${color_cmderr}" /dev/stderr
     log 2 "\n+ Checking universal architecture..."
     for f in `echo ${bins} | tr ' ' '\n' | sort | uniq`; do
         if ! test -L "$f"; then
-            case "$f" in *.a) test -z "$check_a_has_dylib" -o -e "${f%.a}.dylib";;
-                         *.dylib) test -z "$check_dylib_has_a" -o -e "${f%.dylib}.a";;
-                         *) true;;
+            case "$f" in *.a)       test -z "$check_a_has_dylib" -o -e "${f%.a}.dylib";;
+                         *.dylib)   test -z "$check_dylib_has_a" -o -e "${f%.dylib}.a";;
+                         *)         true;;
             esac || { log 1 "!! ${color_a_dylib}.dylib/.a missing${color_rst} for ${color_which}$f${color_rst}"; }
         fi
         if test -n "$check_univ" && eval "case \"${f}\" in ${ignorearch_for}) false;; *) true;; esac"; then
@@ -349,7 +325,8 @@ printf "${color_cmderr}" /dev/stderr
     # Check external dependencies
     log 2 "\n+ Checking external dependencies..."
     for l in `echo "${libs_deps}" | tr ' ' '\n' | sort | uniq`; do
-        eval "log 1 \"${color_warn}${l}${color_rst} [\${lib_`varname "$l"`} ]\""
+        test -e "$l" && color=${color_warn} || color=${color_ko}
+        eval "log 1 \"${color}${l}${color_rst} [\${lib_`varname "$l"`} ]\""
         log 2
     done
 }
