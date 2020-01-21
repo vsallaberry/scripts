@@ -31,7 +31,7 @@
 ## 2. FIXME: FIXME_libs_deps
 ##
 ###
-VERSION=0.7.0
+VERSION=0.7.1
 loglevel=2
 prefix=
 find_prefix="/{bin,lib,libexec,bin64,lib64,libexec64}"
@@ -70,6 +70,7 @@ if test -t 2; then
     color_warn="${color_esc}00;33${color_end}"
     color_info="${color_esc}00;36${color_end}"
     color_cmderr="${color_esc}00;30${color_end}"
+    color_opt="${color_esc}00;32${color_end}"
 else
     progress=
     color_rst=
@@ -79,6 +80,7 @@ else
     color_warn=
     color_info=
     color_cmderr=
+    color_opt=
 fi
 color_badlink=${color_ko}
 color_badarch=${color_ko}
@@ -98,10 +100,11 @@ log() {
 }
 show_help() {
     log 1 "Usage: `basename "$0"` [-hfuysV] [-d|-a pattern] [-l level] [prefix]"
-    log 1 "  This script, running on MacOS only, analyzes libs and binaries of a given prefix"
-    log 1 "  * checks links validity"
-    log 1 "  * checks universal architectures"
-    log 1 "  * checks for external dependencies"
+    log 1
+    log 1 "This script, running on MacOS only, analyzes libs and binaries of a given prefix"
+    log 1 "* checks links validity"
+    log 1 "* checks universal architectures"
+    log 1 "* checks for external dependencies"
     log 1
     log 1 "  -f                 toggle force scanning all in <prefix> rather than <prefix>${find_prefix} (current:${find_all})"
     log 1 "  -u                 toggle check universal binaries (current:${check_univ})"
@@ -180,7 +183,7 @@ add_find_patterns() { for p in "$@"; do find_patterns[$i_pattern]="${p}"; i_patt
 #add_find_patterns "-and" "!" "-path" "${prefix}/lib*/wine/*"
 
 varname() {
-    echo "${@%% *}" | sed -e 's/[[:space:].,+-\)\(]/_/g'
+    echo "${@%% *}" | sed -e 's|[[:space:].,;~/+-\)\(]|_|g'
 }
 
 libs_deps=
@@ -192,12 +195,12 @@ files=; n_files=0; declare -a files
 log 2 "+ Scanning '${prefix}'..."
 printf "${color_cmderr}" /dev/stderr
 
-{ find ${find_prefix} \! -type d                                        \
+find ${find_prefix} \! -type d                                        \
     -and \( -name '*.dylib' -o -name '*.a' -o -name '*.so'              \
-            -o -name '*.dll' -o -perm '+u=x' \); echo;     \
-} | {
+            -o -name '*.dll' -o -perm '+u=x' \)     \
+| {
     # build list of files
-    while read f; do test -n "${f}" && {
+    while { f=; read f || test -n "${f}"; }; do
         if test -L "${f}"; then
             if target=`greadlink -f "$f" 2>/dev/null` && test -e "${target}"; then
                 # add symbolic link to list because it points to different folder than prefix
@@ -207,8 +210,8 @@ printf "${color_cmderr}" /dev/stderr
             fi
         else
             files[$n_files]="${f}"; n_files=$((n_files+1))
-        fi;
-    }; done
+        fi
+    done
     printf "${color_rst}" > /dev/stderr
 
     log 2 "\n+ Building list of binaries, libraries and dependencies..."
@@ -241,7 +244,7 @@ printf "${color_cmderr}" /dev/stderr
         done
     }
 
-    killchilds() { test -n "$childs" && log 2 "\n+ terminating childs $childs" && kill $childs; childs=; }
+    killchilds() { test -n "$childs" && log 2 "\n+ terminating childs $childs" && kill $childs && wait && childs=; }
     childs=
     trap killchilds EXIT
 
@@ -272,8 +275,7 @@ printf "${color_cmderr}" /dev/stderr
             if test $ratio -gt $oldratio; then
                 newtsp=`date '+%s'`
                 eta=$(( ((newtsp-tsp) * (n_files-i_file-1)) / (i_file+1) ))
-                eta="$((eta / 60)):$((eta % 60))"
-                log 2 -n '\r% 9d / % 9d [% 3d%%] ETA %8s ' $i_file $n_files $ratio $eta
+                log 2 -n '\r%21s %-6s ETA %02d:%02d:%02d ' "$i_file / $n_files" "[${ratio}%]" $((eta / 3600)) $(((eta%3600)/60)) $((eta % 60))
                 oldratio=$ratio
             fi
         fi
@@ -313,12 +315,10 @@ printf "${color_cmderr}" /dev/stderr
     # Check universal architectures of given libraries
     log 2 "\n+ Checking universal architecture..."
     for f in `echo ${bins} | tr ' ' '\n' | sort | uniq`; do
-        if ! test -L "$f"; then
-            case "$f" in *.a)       test -z "$check_a_has_dylib" -o -e "${f%.a}.dylib";;
-                         *.dylib)   test -z "$check_dylib_has_a" -o -e "${f%.dylib}.a";;
-                         *)         true;;
-            esac || { log 1 "!! ${color_a_dylib}.dylib/.a missing${color_rst} for ${color_which}$f${color_rst}"; }
-        fi
+        case "$f" in *.a)       test -z "$check_a_has_dylib" -o -e "${f%.a}.dylib";;
+                     *.dylib)   test -z "$check_dylib_has_a" -o -e "${f%.dylib}.a";;
+                     *)         true;;
+        esac || { log 1 "!! ${color_a_dylib}.dylib/.a missing${color_rst} for ${color_which}$f${color_rst}"; }
         if test -n "$check_univ" && eval "case \"${f}\" in ${ignorearch_for}) false;; *) true;; esac"; then
             "$lipo" "$f" -verify_arch i386 x86_64 >/dev/null 2>&1 \
             || { log 1 "!! ${color_badarch}missing arch${color_rst} in ${color_which}'$f'${color_rst} $("$lipo" -info "$f" 2>/dev/null | tr '\n' ' ')"; \
