@@ -31,9 +31,9 @@
 ## 2. FIXME: FIXME_libs_deps
 ##
 ###
-VERSION=0.7.2
+VERSION=0.8.0
 loglevel=2
-prefix=/usr/local/wine
+prefix_def=/usr/local/wine
 find_prefix="/{bin,lib,libexec,bin64,lib64,libexec64}"
 find_all=
 check_univ=yes
@@ -49,9 +49,9 @@ ignorearch_for_wine='|${prefix}/lib*/wine/*|${prefix}/bin/widl|${prefix}/bin/win
 ignorearch_for_def='${prefix}/lib64/*|${prefix}/bin64/*${ignorearch_for_wine}'
 ignorearch_for_wine_def=${ignorearch_for_wine}
 ignore_dyn_and_static=
-ignore_dyn_and_static_def='""${ignore_dyn_and_static_for_wine}'
-ignore_dyn_and_static_for_wine=
-ignore_dyn_and_static_for_wine_def='|${prefix}/lib*/wine/*.a'
+ignore_dyn_and_static_def='*.txt${ignore_dyn_and_static_for_wine}'
+ignore_dyn_and_static_for_wine='|${prefix}/lib*/wine/*.a'
+ignore_dyn_and_static_for_wine_def=${ignore_dyn_and_static_for_wine}
 
 otool=/Library/Developer/CommandLineTools/usr/bin/otool
 test -x "$otool" || otool=`which otool`
@@ -76,6 +76,7 @@ if test -t 2; then
     color_def="${color_esc}00;00${color_end}"
     color_ok="${color_esc}00;32${color_end}"
     color_ko="${color_esc}00;31${color_end}"
+    color_bigko="${color_esc}01;31${color_end}"
     color_warn="${color_esc}00;33${color_end}"
     color_info="${color_esc}00;36${color_end}"
     color_cmderr="${color_esc}00;30${color_end}"
@@ -86,13 +87,15 @@ else
     color_def=
     color_ok=
     color_ko=
+    color_bigko=
     color_warn=
     color_info=
     color_cmderr=
     color_opt=
 fi
-color_badlink=${color_ko}
-color_badarch=${color_ko}
+color_badlink=${color_bigko}
+color_badarch=${color_bigko}
+color_nolib=${color_bigko}
 color_a_dylib=${color_warn}
 color_extlib=${color_warn}
 color_which=${color_info}
@@ -108,6 +111,7 @@ log() {
     fi
 }
 show_help() {
+    prefix="${prefix:-${prefix_def}}"
     log 1 "Usage: `basename "$0"` [-hfuywsV] [-d|-a pattern] [-l level] [prefix]"
     log 1
     log 1 "This script, running on MacOS only, analyzes libs and binaries of a given prefix"
@@ -162,10 +166,14 @@ while test $# -gt 0; do
     shift
 done
 
+test -z "${prefix}" && prefix="${prefix_def}"
+pushd "${prefix}" >/dev/null 2>&1; prefix="`pwd`"; popd >/dev/null 2>&1
 test -n "${find_all}" && find_prefix="${prefix}" || find_prefix="`eval echo "${prefix}${find_prefix}"`"
 ignorearch_for=${ignorearch_for:-`eval "echo \"${ignorearch_for_def}\""`}
 ignoredepon_libs=${ignoredepon_libs:-`eval "echo \"${ignoredepon_libs_def}\""`}
 ignore_dyn_and_static=${ignore_dyn_and_static:-`eval "echo \"${ignore_dyn_and_static_def}\""`}
+
+log 5 "PREFIX\t\t\t${prefix}\nIGNOREARCH\t\t${ignorearch_for}\nIGNOREDEP\t\t${ignoredepon_libs}\nIGNOREDYNSTATIC\t\t${ignore_dyn_and_static}"
 
 if ! which -s "${greadlink}"; then
     greadlink() {
@@ -192,7 +200,7 @@ if ! which -s "${greadlink}"; then
     }
 fi
 
-i_pattern=0; find_patterns=; declare -a find_patterns
+i_pattern=0; unset find_patterns; declare -a find_patterns
 add_find_patterns() { for p in "$@"; do find_patterns[$i_pattern]="${p}"; i_pattern=$((i_pattern+1)); done; }
 #add_find_patterns "-and" "!" "-path" "${prefix}/lib*/wine/*"
 
@@ -204,7 +212,7 @@ libs_deps=
 bins=
 
 CHK_INTERNAL='#///CHK_INTERNAL//#'
-files=; n_files=0; declare -a files
+n_files=0; unset files; declare -a files
 
 log 2 "+ Scanning '${prefix}'..."
 printf "${color_cmderr}" /dev/stderr
@@ -327,18 +335,21 @@ find ${find_prefix} \! -type d                                        \
     oldratio=-1; print_ratio $n_files $n_files; log 2
 
     # Check universal architectures of given libraries
-    log 2 "\n+ Checking universal architecture..."
-    log 2 "${ignore_dyn_and_static}"
+    log 2 "\n+ Checking libraries and binaries formats..."
+
     for f in `echo ${bins} | tr ' ' '\n' | sort | uniq`; do
-        case "$f" in #${ignore_dyn_and_static}) true;;
-                     *.a)       test -z "$check_a_has_dylib" -o -e "${f%.a}.dylib";;
-                     *.dylib)   test -z "$check_dylib_has_a" -o -e "${f%.dylib}.a";;
-                     *)         true;;
-        esac || { log 1 "!! ${color_a_dylib}.dylib/.a missing${color_rst} for ${color_which}$f${color_rst}"; }
-        if test -n "$check_univ" && eval "case \"${f}\" in ${ignorearch_for}) false;; *) true;; esac"; then
+        eval "case \"$f\" in                                                                                \
+                ${ignore_dyn_and_static}) true;;                                                            \
+                *.a)            miss=".dylib";  test -z \"$check_a_has_dylib\" -o -e \"${f%.a}.dylib\";;    \
+                *.dylib|*.so)   miss=".a";      test -z \"$check_dylib_has_a\" -o -e \"${f%.*}.a\";;    \
+                *)              true;;                                                                      \
+        esac" || { log 1 "!! ${color_a_dylib}${miss} missing${color_rst} for ${color_which}$f${color_rst}"; }
+        if ! test -e "${f}"; then
+            log 1 "!! ${color_nolib}lib not found${color_rst}: ${color_which}'$f'${color_rst}"
+        elif test -n "$check_univ" && eval "case \"${f}\" in ${ignorearch_for}) false;; *) true;; esac"; then
             "$lipo" "$f" -verify_arch i386 x86_64 >/dev/null 2>&1 \
             || { log 1 "!! ${color_badarch}missing arch${color_rst} in ${color_which}'$f'${color_rst} $("$lipo" -info "$f" 2>/dev/null | tr '\n' ' ')"; \
-                 FIXME_libs_deps+=" ${f}"; }
+               } # FIXME_libs_deps+=" ${f}"; }
         fi
     done
     # Check external dependencies
