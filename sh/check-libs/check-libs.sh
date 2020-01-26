@@ -1,8 +1,8 @@
 #!/bin/bash
 # --
 # Copyright (C) 2020 Vincent Sallaberry
-# scripts/sh/prompt.sh <https://github.com/vsallaberry/scripts>
-# ps1_open v5.0.4 SH ~generic prompt.
+# scripts/sh/check-libs/check-libs.sh <https://github.com/vsallaberry/scripts>
+# libraries and binaries analysis.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
