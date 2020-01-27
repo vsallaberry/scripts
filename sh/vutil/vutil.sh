@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.2.0"
+    echo "0.2.1"
 }
 ###################################################################
 # Shell Specific Stuff
@@ -55,18 +55,18 @@ test() {
 }
 #vlog_setlevel <loglevel>
 vlog_setlevel() {
-    local arg=$1; arg=${arg#-}
+    local arg="$1"; arg="${arg#-}"
     printf -- "$arg" | { ret=false; while ${VUTIL_read_n1} c; do case "$c" in [0-9]) ret=true;; *) ret=false; break;; esac; done; $ret; } \
-    && { test ${VLOG_LEVEL} -ge 5 -o ${arg} -ge 5 && vlog 0 "vlog_setlevel: new level ${arg}"; VLOG_LEVEL=${arg}; } \
-    || { vlog 0 "!! vlog_setlevel: bad level '${arg}'"; return 1; }
+    && { test ${VLOG_LEVEL} -ge 5 -o ${arg} -ge 5 && vlog 0 "vlog_setlevel: new level ${arg}"; VLOG_LEVEL="${arg}"; } \
+    || { vlog 0 "!! vlog_setlevel: ${VCOLOR_ko}error${VCOLOR_rst}: bad level '${VCOLOR_opt}${arg}${VCOLOR_rst}'"; return 1; }
 }
 #vlog_setout <file>
 vlog_setout() {
-    test -e "$1" && VLOG_OUT=$1 || { vlog 0 "!! vlog_setout: bad file '$1'"; return 1; }
+    test -e "$1" && VLOG_OUT="$1" || { vlog 0 "!! vlog_setout: ${VCOLOR_ko}error${VCOLOR_rst}: bad file '${VCOLOR_opt}$1${VCOLOR_rst}'"; return 1; }
 }
 #vlog <level> [-n] [<printf_args>]
 vlog() {
-    local level=$1 eol
+    local level="$1" eol
     if test ${VLOG_LEVEL} -ge $level; then
         shift
         test "$1" = "-n" && { eol=''; shift; } || eol='\n'
@@ -75,22 +75,23 @@ vlog() {
     fi
 }
 #vtab_add <array_name> <elt_1> [... [<elt_n>]]
+#!! array index starts at 1 for zsh compatibility
 vtab_add() {
-    local _tabn=$1 _arg _i; shift
+    local _tabn="$1" _arg _i; shift
     eval "_i=\${#${_tabn}[@]}"
     for _arg in "$@"; do
-        eval "${_tabn}[${_i}]=\"${_arg}\""; _i=$((_i + 1))
+        _i=$((_i + 1)); eval "${_tabn}[${_i}]=\"${_arg}\""
     done
 }
 #vescape_spaces <var_name> : escape spaces with '\\ ' in <var_name>
 vescape_spaces() {
-    local _find_n=$1 _start= _end _new
-    eval "_end=\${${_find_n}}"
+    local _find_n="$1" _start= _end _new
+    eval "_end=\"\${${_find_n}}\""
     while true; do case "${_end}" in
         *" "*)
-            _new=${_end}
-            _end=${_new#* }
-            _new=${_new%% *}
+            _new="${_end}"
+            _end="${_new#* }"
+            _new="${_new%% *}"
             _start="${_start}${_new}\\ " ;;
         *)  break ;;
     esac; done
@@ -100,14 +101,15 @@ vescape_spaces() {
 #vtab_find <array_name> <elt> [<idx_name>] [start_idx]
 #  * if idx_name is given, it is set to found index
 #  * if start_idx is given, search will start on given index (usefull to find duplicates)
-#    eg: idx=-1; while vtab_find tab 4 idx $((idx+1)); do echo "->found #$idx '${tab[$idx]}'"; done
+#    eg: idx=0; while vtab_find tab 4 idx $((idx+1)); do echo "->found #$idx '${tab[$idx]}'"; done
+#!! array index starts at 1 for zsh compatibility
 vtab_find() {
-    local _tabn=$1 _n _i _find=$2 _idxn=$3 _startidx=$4 _elt; shift; shift; shift
+    local _tabn="$1" _n _i _find="$2" _idxn="$3" _startidx="$4" _elt; shift; test -n "${_idxn}" && shift; test -n "${_startidx}" && shift
     eval "_n=\${#${_tabn}[@]}"
-    test -z "${_startidx}" && _startidx=0
+    test -z "${_startidx}" && _startidx=1
 
     vescape_spaces _find
-    for (( _i = ${_startidx} ; _i < _n ; _i = _i + 1 )); do
+    for (( _i = ${_startidx} ; _i <= _n ; _i = _i + 1 )); do
         eval "_elt=\"\${${_tabn}[${_i}]}\""
         if eval "case \"${_elt}\" in ${_find}) true;; *) false;; esac"; then
             test -n "${_idxn}" && eval "${_idxn}=${_i}"
@@ -118,21 +120,23 @@ vtab_find() {
 }
 #vtab_del <array_name> <elt_1> [... [<elt_n>]]
 #  * delete all occurence of given patterns (elt_X)
+#!! array index starts at 1 for zsh compatibility
 vtab_del() {
-    local _ret=1 _tabn=$1 _arg _i _j _n _elt; shift
+    local _ret=1 _tabn="$1" _arg _i _j _n _elt; shift
     eval "_n=\${#${_tabn}[@]}"
-    for (( _i = 0 ; _i < _n ; _i = _i + 1 )); do
+    for (( _i = 1 ; _i <= _n ; _i = _i + 1 )); do
         eval "_elt=\"\${${_tabn}[${_i}]}\""
         for _arg in "$@"; do
             vescape_spaces _arg
             if eval "case \"${_elt}\" in ${_arg}) true;; *) false;; esac"; then
                 vlog 5 "vtab_del: '${_tabn}': removing #${_i} (${_elt}) tabsz=`eval echo "\\\${#${_tabn}[@]}"`"
-                for (( _j = _i + 1 ; _j < _n ; _j = _j + 1 )); do
+                for (( _j = _i + 1 ; _j <= _n ; _j = _j + 1 )); do
                     eval "${_tabn}[$((_j - 1))]=\"\${${_tabn}[${_j}]}\""
                 done
+                eval "${_tabn}[${_n}]=()" 2> /dev/null # zsh
+                eval "unset \"${_tabn}[${_n}]\""
                 _n=$((_n - 1))
                 _i=$((_i - 1))
-                eval "unset ${_tabn}[${_n}]"
                 _ret=0
                 break
             fi
@@ -161,7 +165,7 @@ vgetopt_shift() {
 #    done
 #
 vgetopt() {
-    local _optvar=$1 _argvar=$2; shift; shift
+    local _optvar="$1" _argvar="$2"; shift; shift
     local _cur _opt _opts _arg _args _i
 
     if test -z "${VGETOPT_idx}"; then
@@ -174,14 +178,14 @@ vgetopt() {
     if test -n "${VGETOPT_opts}"; then
         _cur="-${VGETOPT_opts}"
     elif test $# -gt 0; then
-        _cur=$1
+        _cur="$1"
         VGETOPT_idx=$((VGETOPT_idx+1))
         if test "${_cur}" = "--"; then
             # TODO : clean this and handle end of arguments
             VGETOPT_takeopts=
             shift
             VGETOPT_idx=$((VGETOPT_idx+1))
-            _cur=$1
+            _cur="$1"
         fi
         shift
     else
@@ -192,23 +196,34 @@ vgetopt() {
     vlog 7 "vgetopt: new call, cur='${_cur}' idx=${VGETOPT_idx} #=$#"
 
     if test -z "${VGETOPT_takeopts}" || case "${_cur}" in
-        -?*) _opts=${_cur#-}                 # remove heading '-' from current argument
-             _opt=${_opts}; _opts=${_opts#?}; test -n "${_opt}" -a -z "${_opt##-*}" && _opts= || _opt=${_opt%${_opts}} # get opt (1 char or -...), :first char in args, shift args by 1 character
-             test -n "${_opts}" && { _arg=${_opts}; VGETOPT_shift=break; } || { _arg=$1; VGETOPT_shift=shift; }    # prepare argument of opt, user call '$shift' if arg is used.
+        -?*) _opts="${_cur#-}"                 # remove heading '-' from current argument
+             _opt="${_opts}"; _opts="${_opts#?}"; test -n "${_opt}" -a -z "${_opt##-*}" && _opts= || _opt="${_opt%${_opts}}" # get opt (1 char or -...), :first char in args, shift args by 1 character
+             test -n "${_opts}" && { _arg="${_opts}"; VGETOPT_shift=break; } || { _arg="$1"; VGETOPT_shift=shift; }    # prepare argument of opt, user call '$shift' if arg is used.
              _cur="-${_opt}"
-             _args[0]=${_arg}; _i=1; for _arg in "$@"; do _args[${_i}]="${_arg}"; _i=$((_i + 1)); done
-             vlog 6 "vgetopt: OPT '${_cur}' opts='${_opts}' args='${_args[@]}' shift='${VGETOPT_shift}' #=$#"
+
+             eval "unset ${_argvar}"
+             test -n "${_arg}" \
+             && eval "${_argvar}[1]=\"${_arg}\""; _i=2; for _arg in "$@"; do eval "${_argvar}[${_i}]=\"${_arg}\""; _i=$((_i + 1)); done
+
+             if test -n "${BASH_VERSION}"; then
+                eval "unset ${_argvar}[0]"
+             fi
+             eval "_args=\"\${${_argvar}[@]}\""
+             #eval "unset ${_argvar}[0]"
+
+             vlog 6 "vgetopt: OPT '${_cur}' opts='${_opts}' args='${_args}' shift='${VGETOPT_shift}' #=$#"
              false;;
     esac; then
             # argument management
             vlog 6 "vgetopt: ARG '${_cur}' #=$#"
-            _args=${_cur}
+            #_args=${_cur}
+            eval "${_argvar}=\"${_cur}\""
             _cur=
     fi
 
     eval "${_optvar}=\"${_cur}\""
-    eval "${_argvar}=\"${_args}\""
-    VGETOPT_opts=${_opts}
+    #eval "${_argvar}=\"${_args}\""
+    VGETOPT_opts="${_opts}"
     return 0
 }
 # utilities for sh unitary tests
@@ -226,7 +241,7 @@ vtest_fail() {
     vlog 1 -n "[${VCOLOR_ko}FAIL${VCOLOR_rst}] "; vlog 1 "$@"
 }
 vtest_test() {
-    local _label=$1; shift
+    local _label="$1"; shift
     vlog 1 -n "${_label} "
     test "$@" && vtest_ok || vtest_fail
 }
@@ -243,17 +258,17 @@ vreadlink() {
         case "$arg" in
             -e|-f) canonical=yes;;
             -*) ;;
-            *) file=${arg}; break;;
+            *) file="${arg}"; break;;
         esac
     done
     if test -z "${canonical}"; then
         "${VUTIL_readlink}" "$@"
     else
         test -e "${file}" || return 1
-        newfile=${file}; while newfile=`"$readlink" "${newfile}"`; do
+        newfile="${file}"; while newfile=`"$readlink" "${newfile}"`; do
             case "${newfile}" in /*) ;; *) newfile="`dirname "${file}"`/${newfile}";; esac
             test "${newfile}" = "${file}" && return 1 # check recursive link
-            file=${newfile}
+            file="${newfile}"
         done
         case "${file}" in /*) ;; "") ;; *) file="`pwd`/${file}";; esac
         echo "${file}"
@@ -261,12 +276,12 @@ vreadlink() {
 }
 #vprint_ratio <cur_index> <n_indexes> <start_time_seconds_varname> <prev_ratio_varname>
 vprint_ratio() {
-    local _starttsp_n=$3 _oldratio_n=$4 _oldratio_v _starttsp_v
+    local _starttsp_n="$3" _oldratio_n="$4" _oldratio_v _starttsp_v
     eval "_oldratio_v=\${${_oldratio_n}}; _starttsp_v=\${${_starttsp_n}}; \
           test -z "\${_starttsp_v}" && { _starttsp_v=`date '+%s'`; ${_starttsp_n}=${_starttsp_v}; }"
     test -z "${_oldratio_v}" && _oldratio_v=-1
 
-    local _i_file=$1 _n_files=$2 _ratio _newtsp _eta
+    local _i_file="$1" _n_files="$2" _ratio _newtsp _eta
     if test -n "${VCOLOR_esc}" -a ${_n_files} -gt 0; then
         _ratio=$(( ((_i_file * 100) / _n_files) ))
         if test ${_ratio} -gt ${_oldratio_v}; then
@@ -312,13 +327,13 @@ vlog 1 "$0: 0='$0' _='${VUTIL_underscore}' @='${VUTIL_arobas}'"
 #vutil_sourcing() - tells wheter this script is executed or sourced
 vutil_sourcing_bash() {
     local my0
-    test -n "$1" && my0=$1 || my0=$0
+    test -n "$1" && my0="$1" || my0="$0"
     test -e "${my0}" && read -n 1 c < "${my0}" && case "$c" in [[:ascii:]]) true;; *) false;; esac \
     && { VUTIL_sourcing=1;  VUTIL_exit=exit;    return ${VUTIL_sourcing}; } \
     || { VUTIL_sourcing=0;  VUTIL_exit=return;  return ${VUTIL_sourcing}; }
 }
 vutil_sourcing_ksh() {
-    test -n "$1" && my0=$1 || my0=$0
+    test -n "$1" && my0="$1" || my0="$0"
     test -e "${my0}" && read -N 1 c < "${my0}" && case "$c" in [[:print:]]) true;; *) false;; esac \
     && { VUTIL_sourcing=1;  VUTIL_exit=exit;    return ${VUTIL_sourcing}; } \
     || { VUTIL_sourcing=0;  VUTIL_exit=return;  return ${VUTIL_sourcing}; }
@@ -332,7 +347,7 @@ vutil_sourcing_zsh() {
 #vutil_myname()
 vutil_myname() {
     local my0 mydir myname mypath
-    my0="${BASH_SOURCE[0]}"; test -z "$my0" && my0=$0
+    my0="${BASH_SOURCE[0]}"; test -z "$my0" && my0="$0"
     mydir="$(dirname "$my0")"; pushd "${mydir}" > /dev/null; mydir="`pwd`"; popd > /dev/null
     myname="$(basename "$my0")"; mypath="${mydir}/${myname}"
 }
@@ -346,6 +361,7 @@ if vutil_sourcing "$0" "$underscore"; then
 else
     vlog 1 "$0: NOT SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}})"
     dotests=
+vlog_setlevel 12
 
     show_help() {
         echo "Usage `basename "$0"` [-hVT] [-l <level>]"
@@ -359,12 +375,12 @@ else
         case "$opt" in
             -h|--help)      show_help 0;;
             -V|--version)   vutil_version; exit 0;;
-            -l|--level)     test -n "$arg" || { vlog 1 "missing argument for option '$opt'"; exit 3; }
-                            vlog_setlevel "$arg"; vgetopt_shift;;
+            -l|--level)     echo "arg:$arg args:${arg[@]} args#:${#arg[@]}"; test ${#arg[@]} -gt 0 || { vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: missing argument for option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; exit 3; }
+                            vlog_setlevel "${arg[1]}" || exit 4; vgetopt_shift;;
             -T|--test)      dotests=yes;;
-            -*)             vlog 1 "error: unknown option '$opt'"; show_help 1;;
+            -*)             vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: unknown option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; show_help 1;;
             '') case "${arg}" in
-                    *) vlog 1 "error: bad argument '${arg}'"; show_help 2;;
+                    *) vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: bad argument '${VCOLOR_opt}${arg}${VCOLOR_rst}'"; show_help 2;;
                 esac;;
         esac
     done
@@ -384,7 +400,7 @@ else
     unset tab; declare -a tab;
     ptab() {
         vlog 1 "tab #=${#tab[@]}"
-        local e i=0
+        local e i=1
         for e in "${tab[@]}"; do
             vlog 1 "#$i '$e'"; i=$((i+1))
         done
@@ -400,7 +416,7 @@ else
     vlog 1 "TAB FIND 6*:"
     vtab_find tab "6*" idx && vtest_ok "->found #$idx '${tab[$idx]}'" || vtest_fail "!! NOT FOUND"
     vlog 1 "TAB find 4:"
-    idx=-1; while vtab_find tab 4 idx $((idx+1)); do
+    idx=0; while vtab_find tab 4 idx $((idx+1)); do
         vlog 1 " ->found #$idx '${tab[$idx]}'"
     done
     vlog 1 "TAB FIND abc:"
@@ -411,31 +427,51 @@ else
     vtab_find tab "[0-9] *" && vtest_ok "-> found !" || vtest_fail "!! -> not found"
 
     vlog 1 "TAB DEL 2:"
+    sz=${#tab[@]}
     vtab_del tab "2"
-    vtest_test "retval" $? -eq 0
+    vtest_test "retval/arraysz" $? -eq 0 -a ${#tab[@]} -eq $((sz - 1))
+    vtab_find tab 2
+    vtest_test "2 deleted" $? -ne 0
     ptab
 
     vlog 1 "TAB DEL 1:"
+    sz=${#tab[@]}
     vtab_del tab 1
-    vtest_test "retval" $? -eq 0
+    vtest_test "retval/arraysz" $? -eq 0 -a ${#tab[@]} -eq $((sz - 1))
+    vtab_find tab 1
+    vtest_test "1 deleted" $? -ne 0
     ptab
 
     vlog 1 "TAB DEL NOT FOUND:"
+    sz=${#tab[@]}
     vtab_del tab "ELEMENT NOT FOUND"
-    vtest_test "retval" $? -ne 0
+    vtest_test "retval/arraysz" $? -ne 0 -a ${#tab[@]} -eq $sz
     ptab
 
 
     vlog 1 "TAB DEL 8:"
+    sz=${#tab[@]}
     vtab_del tab "8*"
-    vtest_test "retval" $? -eq 0
+    vtest_test "retval/arraysz" $? -eq 0 -a ${#tab[@]} -eq $((sz - 1))
+    vtab_find tab "8*"
+    vtest_test "8* deleted" $? -ne 0
     ptab
 
     vlog 1 "TAB DEL ALL:"
     vtab_del tab "*"
     vtest_test "retval" $? -eq 0
+    vtab_find tab "*"
+    vtest_test "* deleted" $? -ne 0
     vtest_test "array empty" ${#tab[@]} -eq 0
     ptab
+
+    if test -z "${VUTIL_SHLVL_OLD}"; then
+        export VUTIL_SHLVL_OLD="${SHLVL}"
+        for sh in `which bash ksh zsh`; do
+            "$sh" "$0" "$@"
+            vtest_test "$sh tests" $? -eq 0
+        done
+    fi
 
     #tests for vreadlink
     if false; then
