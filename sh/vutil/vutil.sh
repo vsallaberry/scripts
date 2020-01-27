@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.3.0"
+    echo "0.3.1"
 }
 ###################################################################
 # Shell Specific Stuff
@@ -57,13 +57,21 @@ test() {
 #vlog_setlevel <loglevel>
 vlog_setlevel() {
     local arg="$1"; arg="${arg#-}"
+    local _file="${arg#*@}"
+    if test "${_file}" \!= "${arg}" -a -n "${_file}"; then
+        arg="${arg%%@*}"
+        vlog_setout "${_file}" || return 1
+    fi
     printf -- "$arg" | { ret=false; while ${VUTIL_read_n1} c; do case "$c" in [0-9]) ret=true;; *) ret=false; break;; esac; done; $ret; } \
-    && { test ${VLOG_LEVEL} -ge 5 -o ${arg} -ge 5 && vlog 0 "vlog_setlevel: new level ${arg}"; VLOG_LEVEL="${arg}"; } \
+    && { test ${VLOG_LEVEL} -ge 5 -o ${arg} -ge 5 && vlog 0 "vlog_setlevel: new level ${arg} @${VLOG_OUT}"; VLOG_LEVEL="${arg}"; } \
     || { vlog 0 "!! vlog_setlevel: ${VCOLOR_ko}error${VCOLOR_rst}: bad level '${VCOLOR_opt}${arg}${VCOLOR_rst}'"; return 1; }
 }
 #vlog_setout <file>
 vlog_setout() {
-    test -e "$1" && VLOG_OUT="$1" || { vlog 0 "!! vlog_setout: ${VCOLOR_ko}error${VCOLOR_rst}: bad file '${VCOLOR_opt}$1${VCOLOR_rst}'"; return 1; }
+    local _file="$1" _dir="`dirname "$1"`"
+    test -w "${_file}" -o -w "${_dir}" \
+    && VLOG_OUT="${_file}" && VUTIL_setcolors \
+    || { vlog 0 "!! vlog_setout: ${VCOLOR_ko}error${VCOLOR_rst}: bad file '${VCOLOR_opt}${_file}${VCOLOR_rst}'"; return 1; }
 }
 #vlog <level> [-n] [<printf_args>]
 vlog() {
@@ -134,7 +142,7 @@ vtab_del() {
                 for (( _j = _i + 1 ; _j <= _n ; _j = _j + 1 )); do
                     eval "${_tabn}[$((_j - 1))]=\"\${${_tabn}[${_j}]}\""
                 done
-                eval "${_tabn}[${_n}]=()" 2> /dev/null # zsh
+                test -n "${ZSH_VERSION}" && eval "${_tabn}[${_n}]=()" 2> /dev/null # zsh
                 eval "unset \"${_tabn}[${_n}]\""
                 _n=$((_n - 1))
                 _i=$((_i - 1))
@@ -209,10 +217,9 @@ vgetopt() {
              if test -n "${BASH_VERSION}"; then
                 eval "unset ${_argvar}[0]"
              fi
-             eval "_args=\"\${${_argvar}[@]}\""
-             #eval "unset ${_argvar}[0]"
-
-             vlog 6 "vgetopt: OPT '${_cur}' opts='${_opts}' args='${_args}' shift='${VGETOPT_shift}' #=$#"
+             test ${VLOG_LEVEL} -ge 6 \
+             && eval "_args=\"\${${_argvar}[@]}\"" \
+             && vlog 6 "vgetopt: OPT '${_cur}' opts='${_opts}' args='${_args}' shift='${VGETOPT_shift}' #=$#"
              false;;
     esac; then
             # argument management
@@ -291,7 +298,7 @@ vprint_ratio() {
         if test ${_ratio} -gt ${_oldratio_v}; then
             _newtsp=`date '+%s'`
             _eta=$(( ((_newtsp - _starttsp_v) * (_n_files - _i_file - 1)) / (_i_file + 1) ))
-            vlog 2 -n '\r%21s %-6s ETA %02d:%02d:%02d ' "${_i_file} / ${_n_files}" "[${_ratio}%]" $((_eta / 3600)) $(((_eta % 3600)/60)) $((_eta % 60))
+            vlog 1 -n '\r%21s %-6s ETA %02d:%02d:%02d ' "${_i_file} / ${_n_files}" "[${_ratio}%]" $((_eta / 3600)) $(((_eta % 3600)/60)) $((_eta % 60))
             eval "${_oldratio_n}=${_ratio}"
         fi
     fi
@@ -302,32 +309,35 @@ VLOG_LEVEL=1
 VUTIL_readlink=/usr/bin/readlink
 test -x "${VUTIL_readlink}" || { VUTIL_readlink=`which readlink`; vlog 1 "vutil: which readlink -> '${VUTIL_readlink}'"; }
 #COLORS GLOBALS
-if test -t 2; then
-    VCOLOR_esc='\033['
-    VCOLOR_end='m'
-    VCOLOR_rst="${VCOLOR_esc}00${VCOLOR_end}"
+VUTIL_setcolors() {
+    if test -e "${VLOG_OUT}" && test -t 0  < "${VLOG_OUT}"; then
+        VCOLOR_esc='\033['
+        VCOLOR_end='m'
+        VCOLOR_rst="${VCOLOR_esc}00${VCOLOR_end}"
 
-    VCOLOR_def="${VCOLOR_esc}00;00${VCOLOR_end}"
-    VCOLOR_ok="${VCOLOR_esc}00;32${VCOLOR_end}"
-    VCOLOR_ko="${VCOLOR_esc}00;31${VCOLOR_end}"
-    VCOLOR_bigko="${VCOLOR_esc}01;31${VCOLOR_end}"
-    VCOLOR_warn="${VCOLOR_esc}00;33${VCOLOR_end}"
-    VCOLOR_info="${VCOLOR_esc}00;36${VCOLOR_end}"
-    VCOLOR_cmderr="${VCOLOR_esc}00;30${VCOLOR_end}"
-    VCOLOR_opt="${VCOLOR_esc}00;32${VCOLOR_end}"
-else
-    VCOLOR_rst=
-    VCOLOR_def=
-    VCOLOR_ok=
-    VCOLOR_ko=
-    VCOLOR_bigko=
-    VCOLOR_warn=
-    VCOLOR_info=
-    VCOLOR_cmderr=
-    VCOLOR_opt=
-fi
+        VCOLOR_def="${VCOLOR_esc}00;00${VCOLOR_end}"
+        VCOLOR_ok="${VCOLOR_esc}00;32${VCOLOR_end}"
+        VCOLOR_ko="${VCOLOR_esc}00;31${VCOLOR_end}"
+        VCOLOR_bigko="${VCOLOR_esc}01;31${VCOLOR_end}"
+        VCOLOR_warn="${VCOLOR_esc}00;33${VCOLOR_end}"
+        VCOLOR_info="${VCOLOR_esc}00;36${VCOLOR_end}"
+        VCOLOR_cmderr="${VCOLOR_esc}00;30${VCOLOR_end}"
+        VCOLOR_opt="${VCOLOR_esc}00;32${VCOLOR_end}"
+    else
+        VCOLOR_rst=
+        VCOLOR_def=
+        VCOLOR_ok=
+        VCOLOR_ko=
+        VCOLOR_bigko=
+        VCOLOR_warn=
+        VCOLOR_info=
+        VCOLOR_cmderr=
+        VCOLOR_opt=
+    fi
+}
+VUTIL_setcolors
 while vgetopt opt arg "$@"; do
-    case "$opt" in -l|--level) test ${#arg[@]} -gt 0 && vlog_setlevel "${arg[1]}"; vgetopt_shift;; esac
+    case "$opt" in -l|--level) test ${#arg[@]} -gt 0 && vlog_setlevel "${arg[1]}" || exit 5; vgetopt_shift;; esac
 done
 ############### CRAP ############################################################
 vlog 4 "$0: 0='$0' _='${VUTIL_underscore}' @='${VUTIL_arobas}'"
@@ -370,11 +380,11 @@ else
     dotests=
 
     show_help() {
-        echo "Usage `basename "$0"` [-hVT] [-l <level>]"
-        echo "  -h, --help              show help"
-        echo "  -V, --version           show version"
-        echo "  -l, --level <level>     set log level"
-        echo "  -T, --test              perform unitary tests"
+        vlog 1 "Usage `basename "$0"` [-hVT] [-l <level>]"
+        vlog 1 "  -h, --help              show help"
+        vlog 1 "  -V, --version           show version"
+        vlog 1 "  -l, --level <level>     set log level"
+        vlog 1 "  -T, --test              perform unitary tests"
         exit $1
     }
     while vgetopt opt arg "$@"; do
@@ -382,7 +392,7 @@ else
             -h|--help)      show_help 0;;
             -V|--version)   vutil_version; exit 0;;
             -l|--level)     test ${#arg[@]} -gt 0 || { vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: missing argument for option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; exit 3; }
-                            vlog_setlevel "${arg[1]}" || exit 4; vgetopt_shift;;
+                            vgetopt_shift;; # only parsing, 'vlog_setlevel "${arg[1]}" || exit 4' already done previously
             -T|--test)      dotests=yes;;
             -*)             vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: unknown option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; show_help 1;;
             '') case "${arg}" in
@@ -467,7 +477,7 @@ else
 
     if test -z "${VUTIL_SHLVL_OLD}"; then
         export VUTIL_SHLVL_OLD="${SHLVL}"
-        for sh in `which bash ksh zsh`; do
+        for sh in `which sh bash ksh zsh`; do
             "$sh" "$0" "$@"
             vtest_test "$sh tests" $? -eq 0
         done
