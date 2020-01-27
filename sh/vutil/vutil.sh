@@ -29,13 +29,14 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.2.1"
+    echo "0.3.0"
 }
 ###################################################################
 # Shell Specific Stuff
 ###################################################################
 if test -n "${KSH_VERSION}"; then
     local i 2> /dev/null || local() { typeset "$@"; }
+    declare > /dev/null 2>&1 || declare() { typeset "$@"; }
     vutil_sourcing() { vutil_sourcing_ksh "$@"; }
     VUTIL_read_n1="read -N 1"
 elif test -n "${ZSH_VERSION}"; then
@@ -246,10 +247,13 @@ vtest_test() {
     test "$@" && vtest_ok || vtest_fail
 }
 vtest_report() {
+    vlog 1 "==================================================================="
     vlog 1 "%d tests, %d ${VCOLOR_ok}OK${VCOLOR_rst}, %d ${VCOLOR_ko}KO${VCOLOR_rst}" ${_vtest_ntest} ${_vtest_nok} ${_vtest_nko}
     test ${_vtest_nko} -gt 0 \
-        && { vlog 1 "${VCOLOR_ko}FAILED !!!${VCOLOR_rst}"; return ${_vtest_nko}; } \
-        || { vlog 1 "${VCOLOR_ok}ALL OK${VCOLOR_rst}"; return 0; }
+        && vlog 1 "${VCOLOR_ko}FAILED !!!${VCOLOR_rst}" \
+        || vlog 1 "${VCOLOR_ok}ALL OK${VCOLOR_rst}"
+    vlog 1 "==================================================================="
+    return ${_vtest_nko}
 }
 #vreadlink [args] - gnu readlink emulation
 vreadlink() {
@@ -322,8 +326,11 @@ else
     VCOLOR_cmderr=
     VCOLOR_opt=
 fi
+while vgetopt opt arg "$@"; do
+    case "$opt" in -l|--level) test ${#arg[@]} -gt 0 && vlog_setlevel "${arg[1]}"; vgetopt_shift;; esac
+done
 ############### CRAP ############################################################
-vlog 1 "$0: 0='$0' _='${VUTIL_underscore}' @='${VUTIL_arobas}'"
+vlog 4 "$0: 0='$0' _='${VUTIL_underscore}' @='${VUTIL_arobas}'"
 #vutil_sourcing() - tells wheter this script is executed or sourced
 vutil_sourcing_bash() {
     local my0
@@ -357,11 +364,10 @@ vutil_myname() {
 # TESTS
 #####################################################################################################
 if vutil_sourcing "$0" "$underscore"; then
-    vlog 1 "$0: SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}})"
+    vlog 4 "$0: SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}}, @='${VUTIL_arobas}')"
 else
-    vlog 1 "$0: NOT SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}})"
+    vlog 4 "$0: NOT SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}}, @='${VUTIL_arobas}')"
     dotests=
-vlog_setlevel 12
 
     show_help() {
         echo "Usage `basename "$0"` [-hVT] [-l <level>]"
@@ -375,7 +381,7 @@ vlog_setlevel 12
         case "$opt" in
             -h|--help)      show_help 0;;
             -V|--version)   vutil_version; exit 0;;
-            -l|--level)     echo "arg:$arg args:${arg[@]} args#:${#arg[@]}"; test ${#arg[@]} -gt 0 || { vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: missing argument for option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; exit 3; }
+            -l|--level)     test ${#arg[@]} -gt 0 || { vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: missing argument for option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; exit 3; }
                             vlog_setlevel "${arg[1]}" || exit 4; vgetopt_shift;;
             -T|--test)      dotests=yes;;
             -*)             vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: unknown option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; show_help 1;;
@@ -389,22 +395,16 @@ vlog_setlevel 12
 
     vtest_start
 
-    vlog 1 "** 1 LOG"
-    vlog 2 "** 2 LOG"
-    vlog 3 "** 3 LOG"
-    vlog 4 "** 4 LOG"
-
-
     vlog 1 "\n** TAB TESTS **"
 
     unset tab; declare -a tab;
     ptab() {
-        vlog 1 "tab #=${#tab[@]}"
+        vlog 2 "tab #=${#tab[@]}"
         local e i=1
         for e in "${tab[@]}"; do
-            vlog 1 "#$i '$e'"; i=$((i+1))
+            vlog 2 "#$i '$e'"; i=$((i+1))
         done
-        vlog 1
+        vlog 2
     }
     vtab_add tab 1
     vtab_add tab 2
@@ -413,20 +413,20 @@ vlog_setlevel 12
     vtab_add tab 5 "6 six" 7 4 "8 eight"
     ptab
 
-    vlog 1 "TAB FIND 6*:"
+    vlog 2 "TAB FIND 6*:"
     vtab_find tab "6*" idx && vtest_ok "->found #$idx '${tab[$idx]}'" || vtest_fail "!! NOT FOUND"
-    vlog 1 "TAB find 4:"
+    vlog 2 "TAB find 4:"
     idx=0; while vtab_find tab 4 idx $((idx+1)); do
         vlog 1 " ->found #$idx '${tab[$idx]}'"
     done
-    vlog 1 "TAB FIND abc:"
+    vlog 2 "TAB FIND abc:"
     vtab_find tab abc && vtest_fail "!! -> found !" || vtest_ok "-> not found"
-    vlog 1 "TAB FIND 8 eight:"
+    vlog 2 "TAB FIND 8 eight:"
     vtab_find tab "8 eight" && vtest_ok "-> found !" || vtest_fail "!! -> not found"
-    vlog 1 "TAB FIND '[0-9] *"
+    vlog 2 "TAB FIND '[0-9] *"
     vtab_find tab "[0-9] *" && vtest_ok "-> found !" || vtest_fail "!! -> not found"
 
-    vlog 1 "TAB DEL 2:"
+    vlog 2 "TAB DEL 2:"
     sz=${#tab[@]}
     vtab_del tab "2"
     vtest_test "retval/arraysz" $? -eq 0 -a ${#tab[@]} -eq $((sz - 1))
@@ -434,7 +434,7 @@ vlog_setlevel 12
     vtest_test "2 deleted" $? -ne 0
     ptab
 
-    vlog 1 "TAB DEL 1:"
+    vlog 2 "TAB DEL 1:"
     sz=${#tab[@]}
     vtab_del tab 1
     vtest_test "retval/arraysz" $? -eq 0 -a ${#tab[@]} -eq $((sz - 1))
@@ -442,14 +442,14 @@ vlog_setlevel 12
     vtest_test "1 deleted" $? -ne 0
     ptab
 
-    vlog 1 "TAB DEL NOT FOUND:"
+    vlog 2 "TAB DEL NOT FOUND:"
     sz=${#tab[@]}
     vtab_del tab "ELEMENT NOT FOUND"
     vtest_test "retval/arraysz" $? -ne 0 -a ${#tab[@]} -eq $sz
     ptab
 
 
-    vlog 1 "TAB DEL 8:"
+    vlog 2 "TAB DEL 8:"
     sz=${#tab[@]}
     vtab_del tab "8*"
     vtest_test "retval/arraysz" $? -eq 0 -a ${#tab[@]} -eq $((sz - 1))
@@ -457,7 +457,7 @@ vlog_setlevel 12
     vtest_test "8* deleted" $? -ne 0
     ptab
 
-    vlog 1 "TAB DEL ALL:"
+    vlog 2 "TAB DEL ALL:"
     vtab_del tab "*"
     vtest_test "retval" $? -eq 0
     vtab_find tab "*"
