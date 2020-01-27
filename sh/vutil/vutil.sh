@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.3.2"
+    echo "0.3.3"
 }
 ###################################################################
 # Shell Specific Stuff
@@ -325,12 +325,12 @@ VUTIL_setcolors() {
 
         VCOLOR_def="${VCOLOR_esc}00;00${VCOLOR_end}"
         VCOLOR_ok="${VCOLOR_esc}00;32${VCOLOR_end}"
-        VCOLOR_ko="${VCOLOR_esc}00;31${VCOLOR_end}"
-        VCOLOR_bigko="${VCOLOR_esc}01;31${VCOLOR_end}"
+        VCOLOR_ko="${VCOLOR_esc}01;31${VCOLOR_end}"
+        VCOLOR_kon="${VCOLOR_esc}00;31${VCOLOR_end}"
         VCOLOR_warn="${VCOLOR_esc}00;33${VCOLOR_end}"
         VCOLOR_info="${VCOLOR_esc}00;36${VCOLOR_end}"
         VCOLOR_cmderr="${VCOLOR_esc}00;30${VCOLOR_end}"
-        VCOLOR_opt="${VCOLOR_esc}00;32${VCOLOR_end}"
+        VCOLOR_opt="${VCOLOR_esc}01;33${VCOLOR_end}"
     else
         VCOLOR_rst=
         VCOLOR_def=
