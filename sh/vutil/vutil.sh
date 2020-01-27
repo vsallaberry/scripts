@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.3.3"
+    echo "0.3.4 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 ###################################################################
 # Shell Specific Stuff
@@ -398,7 +398,7 @@ else
     while vgetopt opt arg "$@"; do
         case "$opt" in
             -h|--help)      show_help 0;;
-            -V|--version)   vutil_version; exit 0;;
+            -V|--version)   vlog 1 "`vutil_version`"; exit 0;;
             -l|--level)     test ${#arg[@]} -gt 0 || { vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: missing argument for option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; exit 3; }
                             vgetopt_shift;; # only parsing, 'vlog_setlevel "${arg[1]}" || exit 4' already done previously
             -T|--test)      dotests=yes;;
