@@ -29,21 +29,28 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.3.1"
+    echo "0.3.2"
 }
 ###################################################################
 # Shell Specific Stuff
 ###################################################################
 if test -n "${KSH_VERSION}"; then
+    VUTIL_shell=ksh
+    VUTIL_shellversion="${KSH_VERSION}"
     local i 2> /dev/null || local() { typeset "$@"; }
     declare > /dev/null 2>&1 || declare() { typeset "$@"; }
     vutil_sourcing() { vutil_sourcing_ksh "$@"; }
     VUTIL_read_n1="read -N 1"
 elif test -n "${ZSH_VERSION}"; then
+    VUTIL_shell=zsh
+    VUTIL_shellversion="${ZSH_VERSION}"
     vutil_sourcing() { vutil_sourcing_zsh "$@"; }
     VUTIL_read_n1_fun() { read -u 0 -k 1 "$@"; }
     VUTIL_read_n1=VUTIL_read_n1_fun
 else
+    test -n "${BASH_VERSION}" \
+    && { VUTIL_shell=bash; VUTIL_shellversion="${BASH_VERSION}"; } \
+    || { VUTIL_shell=unknown_sh; VUTIL_shellversion="unknown"; }
     vutil_sourcing() { vutil_sourcing_bash "$@"; }
     VUTIL_read_n1="read -n 1"
 fi
@@ -56,13 +63,14 @@ test() {
 }
 #vlog_setlevel <loglevel>
 vlog_setlevel() {
-    local arg="$1"; arg="${arg#-}"
+    local arg="$1"
+    local _test_arg="${arg#-}"
     local _file="${arg#*@}"
     if test "${_file}" \!= "${arg}" -a -n "${_file}"; then
         arg="${arg%%@*}"
         vlog_setout "${_file}" || return 1
     fi
-    printf -- "$arg" | { ret=false; while ${VUTIL_read_n1} c; do case "$c" in [0-9]) ret=true;; *) ret=false; break;; esac; done; $ret; } \
+    printf -- "${_test_arg}" | { ret=false; while ${VUTIL_read_n1} c; do case "$c" in [0-9]) ret=true;; *) ret=false; break;; esac; done; $ret; } \
     && { test ${VLOG_LEVEL} -ge 5 -o ${arg} -ge 5 && vlog 0 "vlog_setlevel: new level ${arg} @${VLOG_OUT}"; VLOG_LEVEL="${arg}"; } \
     || { vlog 0 "!! vlog_setlevel: ${VCOLOR_ko}error${VCOLOR_rst}: bad level '${VCOLOR_opt}${arg}${VCOLOR_rst}'"; return 1; }
 }
@@ -337,7 +345,7 @@ VUTIL_setcolors() {
 }
 VUTIL_setcolors
 while vgetopt opt arg "$@"; do
-    case "$opt" in -l|--level) test ${#arg[@]} -gt 0 && vlog_setlevel "${arg[1]}" || exit 5; vgetopt_shift;; esac
+    case "$opt" in -l|--level) test ${#arg[@]} -gt 0 && { vlog_setlevel "${arg[1]}" || exit 5; vgetopt_shift; };; esac
 done
 ############### CRAP ############################################################
 vlog 4 "$0: 0='$0' _='${VUTIL_underscore}' @='${VUTIL_arobas}'"
