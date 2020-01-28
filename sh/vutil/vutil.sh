@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.4.0 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.4.1 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -609,7 +609,7 @@ else
 
     if test -z "${VUTIL_SHLVL_OLD}"; then
         export VUTIL_SHLVL_OLD="${SHLVL}"
-        for sh in `which sh bash ksh zsh`; do
+        for sh in `which sh bash ksh zsh /{usr,opt}/local/bin/{bash,zsh,sh,ksh} | sort | uniq`; do
             "$sh" "$0" "$@"
             vtest_test "$sh tests" $? -eq 0
         done
