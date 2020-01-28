@@ -29,8 +29,12 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.3.4 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.3.5 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
+# test wrapper to force use of builtin / not needed
+#test() {
+#    [ "$@" ]
+#}
 ###################################################################
 # Shell Specific Stuff
 ###################################################################
@@ -41,6 +45,15 @@ if test -n "${KSH_VERSION}"; then
     declare > /dev/null 2>&1 || declare() { typeset "$@"; }
     vutil_sourcing() { vutil_sourcing_ksh "$@"; }
     VUTIL_read_n1="read -N 1"
+    pushd() {
+        vtab_add VUTIL_ksh_pushd "`pwd`"
+        cd "$@"
+    }
+    popd() {
+        local _prev="${VUTIL_ksh_pushd[${#VUTIL_ksh_pushd[@]}]}"
+        unset VUTIL_ksh_pushd[${#VUTIL_ksh_pushd[@]}]
+        cd "${_prev}"
+    }
 elif test -n "${ZSH_VERSION}"; then
     VUTIL_shell=zsh
     VUTIL_shellversion="${ZSH_VERSION}"
@@ -57,10 +70,6 @@ fi
 ###################################################################
 # vutil functions
 ###################################################################
-# test wrapper to force use of builtin
-test() {
-    [ "$@" ]
-}
 #vlog_setlevel <loglevel>
 vlog_setlevel() {
     local arg="$1"
@@ -270,6 +279,32 @@ vtest_report() {
     vlog 1 "==================================================================="
     return ${_vtest_nko}
 }
+#vsystem_info() : info about system and shell
+vsystem_info() {
+    local bi biname
+    vlog 1 "%-25s `vutil_version`" "VUTIL_VERSION"
+    vlog 1 "%-25s `uname -a`" SYSTEM
+    vlog 1 "%-25s ${VCOLOR_ok}${VUTIL_shell}${VCOLOR_rst} ${VUTIL_shellversion}" SHELL
+    if test "${VUTIL_shell}" = "ksh"; then
+        set -- "test" "read" "printf" "cd" "true" "false" "pushd" "popd"
+    else
+        set -- "test 1 -eq 1" \
+               "read < /dev/null; printf '1\n' | builtin read" \
+               "printf -- ''" \
+               "cd ." \
+               "true" \
+               "false ; _test=\$( { builtin false; } 2>&1); test -z \"\${_test}\"" \
+               "pushd . > /dev/null" \
+               "popd > /dev/null"
+    fi
+    for bi in "$@"; do
+        biname="${bi%% *}"
+        eval "{ builtin ${bi} ; }  2> /dev/null" \
+        && vlog 1 "%-25s ${VCOLOR_ok}found${VCOLOR_rst}" "builtin-${biname}" \
+        || vlog 1 "%-25s ${VCOLOR_ko}not found${VCOLOR_rst}, using `which "${biname}"`" "builtin-${biname}"
+    done
+    unset read
+}
 #vreadlink [args] - gnu readlink emulation
 vreadlink() {
     local file= arg= newfile= canonical=
@@ -347,6 +382,7 @@ VUTIL_setcolors
 while vgetopt opt arg "$@"; do
     case "$opt" in -l|--level) test ${#arg[@]} -gt 0 && { vlog_setlevel "${arg[1]}" || exit 5; vgetopt_shift; };; esac
 done
+
 ############### CRAP ############################################################
 vlog 4 "$0: 0='$0' _='${VUTIL_underscore}' @='${VUTIL_arobas}'"
 #vutil_sourcing() - tells wheter this script is executed or sourced
@@ -387,12 +423,14 @@ else
     vlog 4 "$0: NOT SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}}, @='${VUTIL_arobas}')"
     dotests=
 
+
     show_help() {
         vlog 1 "Usage `basename "$0"` [-hVT] [-l <level>]"
         vlog 1 "  -h, --help              show help"
         vlog 1 "  -V, --version           show version"
         vlog 1 "  -l, --level <level>     set log level"
         vlog 1 "  -T, --test              perform unitary tests"
+        vlog 1 "  -I, --info              system/shell information"
         exit $1
     }
     while vgetopt opt arg "$@"; do
@@ -402,6 +440,7 @@ else
             -l|--level)     test ${#arg[@]} -gt 0 || { vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: missing argument for option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; exit 3; }
                             vgetopt_shift;; # only parsing, 'vlog_setlevel "${arg[1]}" || exit 4' already done previously
             -T|--test)      dotests=yes;;
+            -I|--info)      vsystem_info; exit $?;;
             -*)             vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: unknown option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; show_help 1;;
             '') case "${arg}" in
                     *) vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: bad argument '${VCOLOR_opt}${arg}${VCOLOR_rst}'"; show_help 2;;
@@ -412,6 +451,24 @@ else
     test -z "${dotests}" && ${VUTIL_exit} 0
 
     vtest_start
+
+    vlog 1 "\n** SYS INFO **"
+    vsystem_info
+
+    vlog 1 "\n** pushd TESTS"
+    prev="`pwd`"
+    for f in /usr /bin /usr/bin "${HOME}"; do
+        pushd "$f" > /dev/null
+        vtest_test "pushd $f" "`pwd`" = "${f}"
+    done
+    popd > /dev/null
+    vtest_test "popd -> /usr/bin" "`pwd`" = "/usr/bin"
+    pushd "${HOME}"
+    vtest_test "pushd $HOME" "`pwd`" = "${HOME}"
+    for f in /usr/bin /bin /usr "${prev}"; do
+        popd > /dev/null
+        vtest_test "popd -> $f" "`pwd`" = "${f}"
+    done
 
     vlog 1 "\n** TAB TESTS **"
 
