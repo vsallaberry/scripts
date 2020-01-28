@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.4.3 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.4.4 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -297,8 +297,10 @@ vtest_test() {
     test "$@" && vtest_ok || vtest_fail
 }
 vtest_report() {
+    local _colorko
+    test ${_vtest_nko} -gt 0 && _colorko="${VCOLOR_ko}" || _colorko=""
     vlog 1 "==================================================================="
-    vlog 1 "%d tests, %d ${VCOLOR_ok}OK${VCOLOR_rst}, %d ${VCOLOR_ko}KO${VCOLOR_rst}" ${_vtest_ntest} ${_vtest_nok} ${_vtest_nko}
+    vlog 1 "%d tests, %d ${VCOLOR_ok}OK${VCOLOR_rst}, %d ${_colorko}KO${VCOLOR_rst}" ${_vtest_ntest} ${_vtest_nok} ${_vtest_nko}
     test ${_vtest_nko} -gt 0 \
         && vlog 1 "${VCOLOR_ko}FAILED !!!${VCOLOR_rst}" \
         || vlog 1 "${VCOLOR_ok}ALL OK${VCOLOR_rst}"
