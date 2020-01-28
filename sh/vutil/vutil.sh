@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.4.2 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.4.3 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -597,7 +597,7 @@ else
     vtab_add tab "3 space 3 "
     vtab_add tab "4 space 4 "
     sz=${#tab[@]}
-    vtab_del "3 space 3"
+    vtab_del tab "3 space 3"
     vtest_test "ret val!=0 arraysz unchanged" $? -ne 0 -a ${#tab[@]} -eq $sz
     vtab_del tab "3 space 3 " "4 space 4 "
     vtest_test "ret val=0 arraysz-=2" $? -eq 0 -a ${#tab[@]} -eq $((sz - 2))
