@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.3.6 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.3.7 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -306,7 +306,7 @@ vsystem_info() {
     vlog 1 "%-25s `uname -a`" SYSTEM
     vlog 1 "%-25s ${VCOLOR_ok}${VUTIL_shell}${VCOLOR_rst} ${VUTIL_shellversion}" SHELL
     if test "${VUTIL_shell}" = "ksh"; then
-        set -- "test" "read" "printf" "cd" "true" "false" "pushd" "popd"
+        set -- "test" "read" "printf" "cd" "true" "false" "pushd" "popd" "pwd"
     else
         set -- "test 1 -eq 1" \
                "read < /dev/null; printf '1\n' | builtin read" \
@@ -315,7 +315,8 @@ vsystem_info() {
                "true" \
                "false ; _test=\$( { builtin false; } 2>&1); test -z \"\${_test}\"" \
                "pushd . > /dev/null" \
-               "popd > /dev/null"
+               "popd > /dev/null" \
+               "pwd > /dev/null"
     fi
     for bi in "$@"; do
         biname="${bi%% *}"
