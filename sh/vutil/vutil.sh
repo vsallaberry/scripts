@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.3.8 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.3.9 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -145,6 +145,7 @@ vtab_find() {
     return 1
 }
 #vtab_delat <array_name> <idx>
+#!! array index starts at 1 for zsh compatibility
 vtab_delat() {
     local _tabn="$1" _idx="$2" _n _j
     eval "_n=\${#${_tabn}[@]}"
@@ -156,6 +157,7 @@ vtab_delat() {
     eval "unset \"${_tabn}[${_n}]\""
 }
 #vtab_pop <array_name> <value_varname>
+#!! array index starts at 1 for zsh compatibility
 vtab_pop() {
     local _tabn="$1" _valn="$2" _n
     eval "_n=\${#${_tabn}[@]}"
@@ -163,6 +165,7 @@ vtab_pop() {
     vtab_delat "${_tabn}" "${_n}"
 }
 #vtab_pop0 <array_name> <value_varname>
+#!! array index starts at 1 for zsh compatibility
 vtab_pop0() {
     local _tabn="$1" _valn="$2" _n
     eval "${_valn}=\"\${${_tabn}[1]}\""
@@ -197,12 +200,15 @@ vgetopt_shift() {
     VGETOPT_shift='shift'
 }
 #vgetopt <opt_varname> <arg_varname> [<arguments>]
+#  Option:   opt_varname != '', arg_varname is array of option args (indexed from 1),
+#                               user call vgetopt_shift for each arg used
+#  Argument: opt_varname = '',  arg_varnane is single argument
 # example:
 # while vgetopt opt arg "$@"; do
 #        case "$opt" in
 #            -h|--help)      show_help 0;;
-#            -l|--level)     test -n "$arg" || { vlog 1 "missing argument for option '$opt'"; exit 3; }
-#                            vlog_setlevel "$arg"; vgetopt_shift;;
+#            -l|--level)     test ${#arg[@]} -gt 0 || { vlog 1 "missing argument for option '$opt'"; exit 3; }
+#                            vlog_setlevel "${arg[1]}"; vgetopt_shift;;
 #            -*)             vlog 1 "error: unknown option '$opt'"; show_help 1;;
 #            '') case "${arg}" in
 #                    *) vlog 1 "error: bad argument '${arg}'"; show_help 2;;
