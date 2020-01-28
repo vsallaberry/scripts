@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.4.1 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.4.2 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -452,7 +452,7 @@ else
 
 
     show_help() {
-        vlog 1 "Usage `basename "$0"` [-hVT] [-l <level>]"
+        vlog 1 "Usage: `basename "$0"` [-hVIT] [-l <level>]"
         vlog 1 "  -h, --help              show help"
         vlog 1 "  -V, --version           show version"
         vlog 1 "  -l, --level <level>     set log level"
