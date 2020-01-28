@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.3.7 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.3.8 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -544,14 +544,18 @@ else
     vtest_test "retval/arraysz" $? -ne 0 -a ${#tab[@]} -eq $sz
     ptab
 
-
     vlog 2 "TAB DEL 8:"
     sz=${#tab[@]}
     vtab_del tab "8*"
     vtest_test "retval/arraysz" $? -eq 0 -a ${#tab[@]} -eq $((sz - 1))
+    sz=$((sz - 1))
     vtab_find tab "8*"
     vtest_test "8* deleted" $? -ne 0
     ptab
+    vtab_delat tab 0
+    vtest_test "delat 0: ret 1 & sz unchanged" $? -ne 0 -a ${#tab[@]} -eq $sz
+    vtab_delat tab $((sz+1))
+    vtest_test "delat sz_1 ret 1 & sz unchanged" $? -ne 0 -a ${#tab[@]} -eq $sz
 
     vlog 2 "TAB DEL ALL:"
     vtab_del tab "*"
@@ -560,6 +564,10 @@ else
     vtest_test "* deleted" $? -ne 0
     vtest_test "array empty" ${#tab[@]} -eq 0
     ptab
+    vtab_delat tab 0
+    vtest_test "delat 0: ret 1 & array empty" $? -ne 0 -a ${#tab[@]} -eq 0
+    vtab_delat tab 1
+    vtest_test "delat 1: ret 1 & array empty" $? -ne 0 -a ${#tab[@]} -eq 0
 
     #vtab_pop
     vtab_add tab "push1"
