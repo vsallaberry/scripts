@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.3.9 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.4.0 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -590,6 +590,22 @@ else
     vtest_test "arraysz 1, poped0=push1" $? -eq 0 -a ${#tab[@]} -eq 1 -a "${poped}" = "push1"
     vtab_pop0 tab poped
     vtest_test "arraysz 0, poped0=push2" $? -eq 0 -a ${#tab[@]} -eq 0 -a "${poped}" = "push2"
+
+    #spaces tests
+    vtab_add tab "1 space 1 "
+    vtab_add tab "2 space 2 "
+    vtab_add tab "3 space 3 "
+    vtab_add tab "4 space 4 "
+    sz=${#tab[@]}
+    vtab_del "3 space 3"
+    vtest_test "ret val!=0 arraysz unchanged" $? -ne 0 -a ${#tab[@]} -eq $sz
+    vtab_del tab "3 space 3 " "4 space 4 "
+    vtest_test "ret val=0 arraysz-=2" $? -eq 0 -a ${#tab[@]} -eq $((sz - 2))
+    sz=$((sz - 2))
+    vtab_find tab "[34]*"
+    vtest_test "find '[34]*' not found" $? -ne 0
+    i=0; idx=0; while vtab_find tab "[12]*" idx $((idx+1)); do i=$((i+1)); done
+    vtest_test "find '[12]*' 2 results" $i -eq 2
 
     if test -z "${VUTIL_SHLVL_OLD}"; then
         export VUTIL_SHLVL_OLD="${SHLVL}"
