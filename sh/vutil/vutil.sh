@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.3.5 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.3.6 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -50,8 +50,8 @@ if test -n "${KSH_VERSION}"; then
         cd "$@"
     }
     popd() {
-        local _prev="${VUTIL_ksh_pushd[${#VUTIL_ksh_pushd[@]}]}"
-        unset VUTIL_ksh_pushd[${#VUTIL_ksh_pushd[@]}]
+        local _prev
+        vtab_pop VUTIL_ksh_pushd _prev
         cd "${_prev}"
     }
 elif test -n "${ZSH_VERSION}"; then
@@ -144,6 +144,30 @@ vtab_find() {
     done
     return 1
 }
+#vtab_delat <array_name> <idx>
+vtab_delat() {
+    local _tabn="$1" _idx="$2" _n _j
+    eval "_n=\${#${_tabn}[@]}"
+    test ${_idx} -le "${_n}" -a ${_idx} -gt 0 || return 1
+    for (( _j = _idx + 1 ; _j <= _n ; _j = _j + 1 )); do
+        eval "${_tabn}[$((_j - 1))]=\"\${${_tabn}[${_j}]}\""
+    done
+    test -n "${ZSH_VERSION}" && eval "${_tabn}[${_n}]=()" 2> /dev/null # zsh
+    eval "unset \"${_tabn}[${_n}]\""
+}
+#vtab_pop <array_name> <value_varname>
+vtab_pop() {
+    local _tabn="$1" _valn="$2" _n
+    eval "_n=\${#${_tabn}[@]}"
+    eval "${_valn}=\"\${${_tabn}[${_n}]}\""
+    vtab_delat "${_tabn}" "${_n}"
+}
+#vtab_pop0 <array_name> <value_varname>
+vtab_pop0() {
+    local _tabn="$1" _valn="$2" _n
+    eval "${_valn}=\"\${${_tabn}[1]}\""
+    vtab_delat "${_tabn}" "1"
+}
 #vtab_del <array_name> <elt_1> [... [<elt_n>]]
 #  * delete all occurence of given patterns (elt_X)
 #!! array index starts at 1 for zsh compatibility
@@ -156,11 +180,7 @@ vtab_del() {
             vescape_spaces _arg
             if eval "case \"${_elt}\" in ${_arg}) true;; *) false;; esac"; then
                 vlog 5 "vtab_del: '${_tabn}': removing #${_i} (${_elt}) tabsz=`eval echo "\\\${#${_tabn}[@]}"`"
-                for (( _j = _i + 1 ; _j <= _n ; _j = _j + 1 )); do
-                    eval "${_tabn}[$((_j - 1))]=\"\${${_tabn}[${_j}]}\""
-                done
-                test -n "${ZSH_VERSION}" && eval "${_tabn}[${_n}]=()" 2> /dev/null # zsh
-                eval "unset \"${_tabn}[${_n}]\""
+                vtab_delat "${_tabn}" "${_i}"
                 _n=$((_n - 1))
                 _i=$((_i - 1))
                 _ret=0
@@ -539,6 +559,22 @@ else
     vtest_test "* deleted" $? -ne 0
     vtest_test "array empty" ${#tab[@]} -eq 0
     ptab
+
+    #vtab_pop
+    vtab_add tab "push1"
+    vtab_add tab "push2"
+    vtab_pop tab poped
+    vtest_test "arraysz 1, poped=push2" $? -eq 0 -a ${#tab[@]} -eq 1 -a "${poped}" = "push2"
+    vtab_pop tab poped
+    vtest_test "arraysz 0, poped=push1" $? -eq 0 -a ${#tab[@]} -eq 0 -a "${poped}" = "push1"
+
+    #vtab_pop0
+    vtab_add tab "push1"
+    vtab_add tab "push2"
+    vtab_pop0 tab poped
+    vtest_test "arraysz 1, poped0=push1" $? -eq 0 -a ${#tab[@]} -eq 1 -a "${poped}" = "push1"
+    vtab_pop0 tab poped
+    vtest_test "arraysz 0, poped0=push2" $? -eq 0 -a ${#tab[@]} -eq 0 -a "${poped}" = "push2"
 
     if test -z "${VUTIL_SHLVL_OLD}"; then
         export VUTIL_SHLVL_OLD="${SHLVL}"
