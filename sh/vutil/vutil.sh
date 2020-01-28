@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.4.4 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.4.5 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -333,6 +333,18 @@ vsystem_info() {
         || vlog 1 "%-25s ${VCOLOR_ko}not found${VCOLOR_rst}, using `which "${biname}"`" "builtin-${biname}"
     done
     unset read
+}
+#vyesno
+vyesno() {
+    local _c=
+    if test $# -eq 0; then
+        printf -- "continue ? [y/n] "
+    else
+        printf -- "%s " "$@"; printf -- "[y/n] ";
+    fi
+    ${VUTIL_read_n1} _c
+    printf -- '\n'
+    test "${_c}" = "y" -o "${_c}" = "Y"
 }
 #vreadlink [args] - gnu readlink emulation
 vreadlink() {
