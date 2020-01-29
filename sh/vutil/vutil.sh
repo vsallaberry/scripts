@@ -29,7 +29,7 @@ VUTIL_arobas="$@"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.4.5 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
+    echo "0.4.6 Copyright (C) 2020 Vincent Sallaberry / GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -504,7 +504,7 @@ else
     done
     popd > /dev/null
     vtest_test "popd -> /usr/bin" "`pwd`" = "/usr/bin"
-    pushd "${HOME}"
+    pushd "${HOME}" > /dev/null
     vtest_test "pushd $HOME" "`pwd`" = "${HOME}"
     for f in /usr/bin /bin /usr "${prev}"; do
         popd > /dev/null
@@ -623,7 +623,9 @@ else
 
     if test -z "${VUTIL_SHLVL_OLD}"; then
         export VUTIL_SHLVL_OLD="${SHLVL}"
-        for sh in `which sh bash ksh zsh /{usr,opt}/local/bin/{bash,zsh,sh,ksh} | sort | uniq`; do
+        for sh in `which {,/bin/,/sbin/,/usr/bin/,/usr/sbin/,/usr/local/bin/,/usr/local/sbin/,/opt/local/bin/,/opt/local/sbin/}{sh,bash,ksh,zsh} \
+                   | sort | uniq`; do
+            vlog 1 "=================================\n** TESTING SHELL ${VCOLOR_ok}${sh}${VCOLOR_rst} **"
             "$sh" "$0" "$@"
             vtest_test "$sh tests" $? -eq 0
         done
