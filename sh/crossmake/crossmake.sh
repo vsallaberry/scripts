@@ -1,8 +1,30 @@
 #!/bin/bash
-. /usr/local/etc/sh/vutil.sh
+# --
+# Copyright (C) 2020 Vincent Sallaberry
+# scripts/sh/crossmake/crossmake.sh <https://github.com/vsallaberry/scripts>
+# building with foreign system.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+# --
+# ONLY TESTED (and most probably working) on macosx.
+# --
+my0="$0"; test -L "${my0}" && my0="`readlink "${my0}"`"
+mypath="`dirname "${my0}"`"; pushd "${mypath}" > /dev/null && { mypath="`pwd`"; popd > /dev/null; }
 
-my0="$0"; my0="`vreadlink -f "${my0}"`"
-mypath="`dirname "${my0}"`"; pushd "${mypath}" > /dev/null && mypath="`pwd`" && popd > /dev/null
+test -e /usr/local/etc/sh/vutil.sh && . /usr/local/etc/sh/vutil.sh \
+    || . "${mypath}/../vutil/vutil.sh"
 
 VERSION=0.1.0
 dotests=
@@ -59,10 +81,12 @@ case "${sys}" in
                 "sys_INCS+=-D_cm_STR\\(x\\)=#x" \
                 "sys_INCS+=-DCPU_PROC_FILE=_cm_STR\\(${mypath}/linux/root/proc/stat\\)"
            sys_run() {
-               local i=0;
+               local i=0
+               if ! test -e "${mypath}/linux/root/proc/stat"; then
+                   mkdir -p "${mypath}/linux/root/proc"
+                   cp -a "${mypath}/linux/root0/proc/stat" "${mypath}/linux/root/proc/stat"
+               fi
                while true; do
-                   #rm "${mypath}/linux/root"
-                   #ln -sf "root$((i % 5))" "${mypath}/linux/root"
                    cat "${mypath}/linux/root$((i % 5))/proc/stat" > "${mypath}/linux/root/proc/stat"
                    i=$((i+1))
                    sleep 1
