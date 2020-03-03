@@ -31,7 +31,7 @@ VUTIL_0="$0"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.5.1 Copyright (C) 2020 Vincent Sallaberry / GNU GPL licence"
+    echo "0.5.2 Copyright (C) 2020 Vincent Sallaberry / GNU GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -77,19 +77,21 @@ fi
 #vlog_setlevel <loglevel>
 vlog_setlevel() {
     local arg="$1"
-    local _test_arg="${arg#-}"
     local _file="${arg#*@}"
     if test "${_file}" \!= "${arg}" -a -n "${_file}"; then
         arg="${arg%%@*}"
         vlog_setout "${_file}" || return 1
     fi
+    local _test_arg="${arg#-}"
     printf -- "${_test_arg}" | { ret=false; while ${VUTIL_read_n1} c; do case "$c" in [0-9]) ret=true;; *) ret=false; break;; esac; done; $ret; } \
     && { test ${VLOG_LEVEL} -ge 5 -o ${arg} -ge 5 && vlog 0 "vlog_setlevel: new level ${arg} @${VLOG_OUT}"; VLOG_LEVEL="${arg}"; } \
     || { vlog 0 "!! vlog_setlevel: ${VCOLOR_ko}error${VCOLOR_rst}: bad level '${VCOLOR_opt}${arg}${VCOLOR_rst}'"; return 1; }
 }
 #vlog_setout <file>
 vlog_setout() {
-    local _file="$1" _dir="`dirname "$1"`"
+    local _file="$1"
+    case "${_file}" in /*) ;; *) _file="`pwd`/${_file}";; esac
+    local _dir="`dirname "${_file}"`"
     test -w "${_file}" -o -w "${_dir}" \
     && VLOG_OUT="${_file}" && VUTIL_setcolors \
     || { vlog 0 "!! vlog_setout: ${VCOLOR_ko}error${VCOLOR_rst}: bad file '${VCOLOR_opt}${_file}${VCOLOR_rst}'"; return 1; }
@@ -441,7 +443,7 @@ VUTIL_readlink=/usr/bin/readlink
 test -x "${VUTIL_readlink}" || { VUTIL_readlink=`which readlink`; vlog 1 "vutil: which readlink -> '${VUTIL_readlink}'"; }
 #COLORS GLOBALS
 VUTIL_setcolors() {
-    if test -e "${VLOG_OUT}" && test -t 1 > "${VLOG_OUT}"; then
+    if test -e "${VLOG_OUT}" && test -t 1 >> "${VLOG_OUT}"; then
         VCOLOR_esc='\033['
         VCOLOR_end='m'
         VCOLOR_rst="${VCOLOR_esc}00${VCOLOR_end}"
@@ -827,6 +829,12 @@ EOFTMP1
     vtest_report
 
     if test -n "${VUTIL_SHLVL_OLD}"; then
+        vlog_lebel_bak=${VLOG_LEVEL}
+        vlog_out_bak=${VLOG_OUT}
+        vlog_setlevel 2@/dev/stderr
+
         vtest_report > "${tmp_subshell_log}" 2>&1
+
+        vlog_setlevel ${vlog_lebel_bak} ${vlog_out_bak}
     fi
 fi
