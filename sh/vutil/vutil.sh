@@ -31,7 +31,7 @@ VUTIL_0="$0"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.5.2 Copyright (C) 2020 Vincent Sallaberry / GNU GPL licence"
+    echo "0.5.3 Copyright (C) 2020 Vincent Sallaberry / GNU GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -528,7 +528,6 @@ if vutil_sourcing "$0" "$underscore"; then
 else
     vlog 4 "$0: NOT SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}}, @='${VUTIL_arobas}')"
     dotests=
-    tmp_subshell_log="/tmp/subshell-tests.log"
 
     show_help() {
         vlog 1 "Usage: `basename "$0"` [-hVIT] [-l <level>]"
@@ -569,7 +568,7 @@ else
     done
     popd > /dev/null
     vtest_test "popd -> /usr/bin" "`pwd`" = "/usr/bin"
-    pushd "${HOME}"
+    pushd "${HOME}" > /dev/null
     vtest_test "pushd $HOME" "`pwd`" = "${HOME}"
     for f in /usr/bin /bin /usr "${prev}"; do
         popd > /dev/null
@@ -789,17 +788,22 @@ EOFTMP1
     if test -z "${VUTIL_SHLVL_OLD}"; then
         SHELL_bak="${SHELL}"
         export VUTIL_SHLVL_OLD="${SHLVL}"
+        export VUTIL_tmp_subshell_log="`mktemp "/tmp/vutil_subshell.log.XXXXXX"`"
         for sh in `which -a sh bash ksh zsh /{usr,opt}/local/bin/{bash,zsh,sh,ksh} | sort | uniq`; do
             test -x "${sh}" || continue
+            rm -f "${VUTIL_tmp_subshell_log}"
             export SHELL="${sh}"
+
             "$sh" "$0" "$@"
             vtest_test "$sh tests" $? -eq 0
             vlog 1 "-----------------------------------------------------------"
-            if test -e "/tmp/subshell-tests.log"; then
-                vtab_add subshell_report "${SHELL}: `grep -E '^[0-9][0-9]* tests, [0-9][0-9] ' "${tmp_subshell_log}"`"
-                rm -f "${tmp_subshell_log}"
+
+            if test -e "${VUTIL_tmp_subshell_log}"; then
+                vtab_add subshell_report "${SHELL}: `grep -E '^[0-9][0-9]* tests, [0-9][0-9] ' "${VUTIL_tmp_subshell_log}"`"
+                rm -f "${VUTIL_tmp_subshell_log}"
             fi
         done
+        rm -f "${VUTIL_tmp_subshell_log}"
         export SHELL="${SHELL_bak}"
     fi
 
@@ -829,12 +833,12 @@ EOFTMP1
     vtest_report
 
     if test -n "${VUTIL_SHLVL_OLD}"; then
-        vlog_lebel_bak=${VLOG_LEVEL}
+        vlog_level_bak=${VLOG_LEVEL}
         vlog_out_bak=${VLOG_OUT}
-        vlog_setlevel 2@/dev/stderr
+        vlog_setlevel 2@/dev/stderr > /dev/null 2>&1
 
-        vtest_report > "${tmp_subshell_log}" 2>&1
+        vtest_report > "${VUTIL_tmp_subshell_log}" 2>&1
 
-        vlog_setlevel ${vlog_lebel_bak} ${vlog_out_bak}
+        vlog_setlevel "${vlog_level_bak}@${vlog_out_bak}" > /dev/null 2>&1
     fi
 fi
