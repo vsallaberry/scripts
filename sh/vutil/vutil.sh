@@ -31,7 +31,7 @@ VUTIL_0="$0"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.5.0 Copyright (C) 2020 Vincent Sallaberry / GNU GPL licence"
+    echo "0.5.1 Copyright (C) 2020 Vincent Sallaberry / GNU GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -344,9 +344,12 @@ vsystem_info() {
     vlog 1 "%-25s `uname -a`" SYSTEM
     vlog 1 "%-25s ${VCOLOR_ok}${VUTIL_shell}${VCOLOR_rst} ${VUTIL_shellversion}" SHELL
     if test "${VUTIL_shell}" = "ksh"; then
-        set -- "test" "read" "printf" "cd" "true" "false" "pushd" "popd" "pwd" \
+        # with ksh, 'builtin' command checks whether arg is builtin (but fails with 'trap').
+        set -- "test" "read" "printf" "cd" "true" "false" "pushd" "popd" "pwd" "which" \
+               "kill" "wait" "echo" "trap || { ! which trap && trap; }" "sleep" "dirname" "basename" \
                "[ -n "test" ]" "[[ \"abcd e\" =~ a.*d[[:space:]]e\$ ]]"
     else
+        # with other shells (bash,sh,zsh,..), 'builtin' command executes the argument if it is builtin
         set -- "test 1 -eq 1" \
                "read < /dev/null; printf '1\n' | builtin read" \
                "printf -- ''" \
@@ -356,6 +359,14 @@ vsystem_info() {
                "pushd . > /dev/null" \
                "popd > /dev/null" \
                "pwd > /dev/null" \
+               "which \"$SHELL\" > /dev/null" \
+               "kill -l > /dev/null" \
+               "wait" \
+               "echo > /dev/null" \
+               "trap" \
+               "sleep 0.1" \
+               "dirname . > /dev/null" \
+               "basename . > /dev/null" \
                "[ -n "test" ]" \
                "[[ \"abcd e\" =~ a.*d[[:space:]]e\$ ]]"
     fi
@@ -455,7 +466,9 @@ VUTIL_setcolors() {
         VCOLOR_opt=
     fi
 }
+# Silently init colors according to terminal type
 VUTIL_setcolors
+# Silently parse command line, looking for log-level option, silently handle it if found.
 while vgetopt opt arg "$@"; do
     case "$opt" in -l|--level) test ${#arg[@]} -gt 0 && { vlog_setlevel "${arg[1]}" 2> /dev/null; vgetopt_shift; } || true;; esac
 done
@@ -466,9 +479,15 @@ vlog 4 "$0: 0='$0' _='${VUTIL_underscore}' @='${VUTIL_arobas}'"
 vutil_sourcing_bash() {
     local my0
     test -n "$1" && my0="$1" || my0="$0"
+  if test -e "${my0}" -a "$my0" = "${BASH_SOURCE[0]}" -a -z "${VUTIL_underscore}"; then
+        read -n 1 c < "${my0}" && case "$c" in [[:print:]]) true;; *) false;; esac \
+        && { VUTIL_sourcing=0;  VUTIL_exit=return;  return ${VUTIL_sourcing}; } \
+        || { VUTIL_sourcing=1;  VUTIL_exit=exit;    return ${VUTIL_sourcing}; }
+  else
     test -e "${my0}" -a "$my0" = "${BASH_SOURCE[0]}" && read -n 1 c < "${my0}" && case "$c" in [[:ascii:]]) true;; *) false;; esac \
     && { VUTIL_sourcing=1;  VUTIL_exit=exit;    return ${VUTIL_sourcing}; } \
     || { VUTIL_sourcing=0;  VUTIL_exit=return;  return ${VUTIL_sourcing}; }
+  fi
 }
 vutil_sourcing_ksh() {
     test -n "$1" && my0="$1" || my0="$0"
@@ -507,6 +526,7 @@ if vutil_sourcing "$0" "$underscore"; then
 else
     vlog 4 "$0: NOT SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}}, @='${VUTIL_arobas}')"
     dotests=
+    tmp_subshell_log="/tmp/subshell-tests.log"
 
     show_help() {
         vlog 1 "Usage: `basename "$0"` [-hVIT] [-l <level>]"
@@ -522,7 +542,7 @@ else
             -h|--help)      show_help 0;;
             -V|--version)   vlog 1 "`vutil_version`" 2>&1; exit 0;;
             -l|--level)     test ${#arg[@]} -gt 0 || { vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: missing argument for option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; exit 3; }
-                            vgetopt_shift;; # only parsing, 'vlog_setlevel "${arg[1]}" || exit 4' already done previously
+                            vlog_setlevel "${arg[1]}" || exit 4; vgetopt_shift;; # vlog_setlevel already done previously, redo it to print errors
             -T|--test)      dotests=yes;;
             -I|--info)      vsystem_info; exit $?;;
             -*)             vlog 1 "${VCOLOR_ko}error${VCOLOR_rst}: unknown option '${VCOLOR_opt}${opt}${VCOLOR_rst}'"; show_help 1;;
@@ -690,17 +710,28 @@ else
     #################################################################################
     # check if the sourcing detection is ok
     #################################################################################
-    ret=`"${SHELL}" "$0"`
-    vtest_test "<shell> script expected:'', ret:'${ret}'" $? -eq 0 -a -z "${ret}"
+    for exe in "${SHELL}" ""; do
+        if test -n "${exe}"; then ret=`"${exe}" "$0"`; else ret=`"$0"`; fi
+        vtest_test "$exe $0> expected:'', ret:'${ret}'" $? -eq 0 -a -z "${ret}"
 
-    ret=`"${SHELL}" "$0" -V`
-    vtest_test "<shell> script -V expected:0,'`vutil_version`', got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "`vutil_version`"
+        if test -n "${exe}"; then ret=`"${exe}" "$0" -V`; else ret=`"$0" -V`; fi
+        vtest_test "$exe $0 -V> expected:0,'`vutil_version`', got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "`vutil_version`"
 
-    ret=`${SHELL} -c "VUTIL_sourcing=12345; . $0 ; echo ok; test \"\\\${VUTIL_sourcing}\" = \"0\""`
-    vtest_test "<shell> -c \"source script\" expected:0,'ok' got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "ok"
+        if test -n "$exe"; then
+            ret=`${SHELL} -c "VUTIL_sourcing=12345; . $0 ; echo ok; test \"\\\${VUTIL_sourcing}\" = \"0\""`
+        else
+            ret=`( VUTIL_sourcing=12345; . $0 ; echo ok; test "\${VUTIL_sourcing}" = "0" )`
+        fi
+        vtest_test "${exe:+${exe} -c }\". $0\" expected:0,'ok' got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "ok"
 
-    ret=`${SHELL} -c "VUTIL_sourcing=12345; . $0 -V; echo ok; test \"\\\${VUTIL_sourcing}\" = \"0\""`
-    vtest_test "<shell> -c \"source script -V\" expected:0,'ok' got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "ok"
+        if test -n "$exe"; then
+            ret=`${SHELL} -c "VUTIL_sourcing=12345; . $0 -V; echo ok; test \"\\\${VUTIL_sourcing}\" = \"0\""`
+        else
+            ret=`( VUTIL_sourcing=12345; . $0 -V; echo ok; test "\${VUTIL_sourcing}" = "0" )`
+        fi
+        vtest_test "${exe:+${exe} -c }\". $0 -V\" expected:0,'ok' got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "ok"
+
+    done
 
     #################################################################################
     # test script sourcing this one, and which is using vgetopt
@@ -756,10 +787,16 @@ EOFTMP1
     if test -z "${VUTIL_SHLVL_OLD}"; then
         SHELL_bak="${SHELL}"
         export VUTIL_SHLVL_OLD="${SHLVL}"
-        for sh in `which sh bash ksh zsh /{usr,opt}/local/bin/{bash,zsh,sh,ksh} | sort | uniq`; do
+        for sh in `which -a sh bash ksh zsh /{usr,opt}/local/bin/{bash,zsh,sh,ksh} | sort | uniq`; do
+            test -x "${sh}" || continue
             export SHELL="${sh}"
             "$sh" "$0" "$@"
             vtest_test "$sh tests" $? -eq 0
+            vlog 1 "-----------------------------------------------------------"
+            if test -e "/tmp/subshell-tests.log"; then
+                vtab_add subshell_report "${SHELL}: `grep -E '^[0-9][0-9]* tests, [0-9][0-9] ' "${tmp_subshell_log}"`"
+                rm -f "${tmp_subshell_log}"
+            fi
         done
         export SHELL="${SHELL_bak}"
     fi
@@ -782,5 +819,14 @@ EOFTMP1
     popd >/dev/null 2>&1
     fi
 
+    test ${#subshell_report[@]} -gt 0 && vlog 1 "sub-shells summary:"
+    for sub in "${subshell_report[@]}"; do
+        vlog 1 "  ${sub}"
+    done
+
     vtest_report
+
+    if test -n "${VUTIL_SHLVL_OLD}"; then
+        vtest_report > "${tmp_subshell_log}" 2>&1
+    fi
 fi
