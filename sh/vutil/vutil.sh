@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # --
 # Copyright (C) 2020 Vincent Sallaberry
 # scripts/sh/vutil/vutil.sh <https://github.com/vsallaberry/scripts>
@@ -17,7 +17,11 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-# --
+# --------------------------------------------------------------------
+# sh utilities, bash or zsh recommanded, shell (type bourne) must
+# have at least arrays (a[1]=1, ${a[@]} ${#a[@]}), subsitutions
+# (${var%..}, ${var%%..}, ${var#..}, ${var##..})
+# --------------------------------------------------------------------
 # TODO
 # ====
 # * TODO: vgetopt : clean '--' handling
@@ -31,7 +35,7 @@ VUTIL_0="$0"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.5.3 Copyright (C) 2020 Vincent Sallaberry / GNU GPL licence"
+    echo "0.5.4 Copyright (C) 2020 Vincent Sallaberry / GNU GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -40,17 +44,59 @@ vutil_version() {
 ###################################################################
 # Shell Specific Stuff
 ###################################################################
+VUTIL_read_n1=false
 if test -n "${KSH_VERSION}"; then
     VUTIL_shell=ksh
     VUTIL_shellversion="${KSH_VERSION}"
     VUTIL_underscore="${VUTIL_underscore#\*[0-9]*\*}"
     VUTIL_underscore="${VUTIL_underscore%%:*}"
-    local i 2> /dev/null || local() { typeset "$@"; }
-    declare > /dev/null 2>&1 || declare() { typeset "$@"; }
+    local i 2> /dev/null || local() { for __arg in "$@"; do case "${__arg}" in -*) ;; *=*) eval "${__arg%%=*}=\${__arg#*=}";; esac; done; }
+    declare > /dev/null 2>&1 || declare() { for __arg in "$@"; do case "${__arg}" in -*) ;; *=*) eval "${__arg%%=*}=\${__arg#*=}";; esac; done; }
     vutil_sourcing() { vutil_sourcing_ksh "$@"; }
     VUTIL_read_n1="read -N 1"
+elif test -n "${ZSH_VERSION}"; then
+    VUTIL_shell=zsh
+    VUTIL_shellversion="${ZSH_VERSION}"
+    vutil_sourcing() { vutil_sourcing_zsh "$@"; }
+    VUTIL_read_n1_fun() { read -u 0 -k 1 "$@"; }
+    VUTIL_read_n1=VUTIL_read_n1_fun
+elif test -n "${BASH_VERSION}"; then
+    VUTIL_shell=bash; VUTIL_shellversion="${BASH_VERSION}"
+    vutil_sourcing() { vutil_sourcing_bash "$@"; }
+    VUTIL_read_n1="read -n 1"
+else
+    VUTIL_shell=unknown_sh; VUTIL_shellversion="${SH_VERSION:-unknown}"
+    vutil_sourcing() { vutil_sourcing_ksh "$@"; }
+    VUTIL_underscore="${VUTIL_underscore#\*[0-9]*\*}"
+    VUTIL_underscore="${VUTIL_underscore%%:*}"
+fi
+# local wrapper if not existing
+( _fun() { local i 2> /dev/null; }; _fun; ) \
+|| local() { for __arg in "$@"; do case "${__arg}" in -*) ;; *=*) eval "${__arg%%=*}=\${__arg#*=}";; esac; done; }
+# declare wrapper if not existing
+( declare -a array; ) > /dev/null 2>&1 \
+|| declare() { for __arg in "$@"; do case "${__arg}" in -*) ;; *=*) eval "${__arg%%=*}=\${__arg#*=}";; esac; done; }
+# read -n 1 wrapper if not supported
+if ! echo "aa" | ${VUTIL_read_n1} c 2> /dev/null; then
+    if echo "aa" | read -n 1 c 2> /dev/null; then
+        VUTIL_read_n1="read -n 1"
+    elif echo "aa" | read -N 1 c 2> /dev/null; then
+        VUTIL_read_n1="read -N 1";
+    else
+        VUTIL_read_n1="__read_n1"
+        __read_n1() {
+            read ___c_
+            ___c2_=${___c_#?}
+            eval "$1=\${___c_%${___c2_}}"
+        }
+    fi
+fi
+# pushd / popd wrapper if not supported
+if pushd . >/dev/null 2>&1 && popd >/dev/null 2>&1; then
+    true
+else
     pushd() {
-        vtab_add VUTIL_ksh_pushd "`pwd`"
+       vtab_add VUTIL_ksh_pushd "`pwd`"
         cd "$@"
     }
     popd() {
@@ -58,18 +104,6 @@ if test -n "${KSH_VERSION}"; then
         vtab_pop VUTIL_ksh_pushd _prev
         cd "${_prev}"
     }
-elif test -n "${ZSH_VERSION}"; then
-    VUTIL_shell=zsh
-    VUTIL_shellversion="${ZSH_VERSION}"
-    vutil_sourcing() { vutil_sourcing_zsh "$@"; }
-    VUTIL_read_n1_fun() { read -u 0 -k 1 "$@"; }
-    VUTIL_read_n1=VUTIL_read_n1_fun
-else
-    test -n "${BASH_VERSION}" \
-    && { VUTIL_shell=bash; VUTIL_shellversion="${BASH_VERSION}"; } \
-    || { VUTIL_shell=unknown_sh; VUTIL_shellversion="unknown"; }
-    vutil_sourcing() { vutil_sourcing_bash "$@"; }
-    VUTIL_read_n1="read -n 1"
 fi
 ###################################################################
 # vutil functions
@@ -83,7 +117,8 @@ vlog_setlevel() {
         vlog_setout "${_file}" || return 1
     fi
     local _test_arg="${arg#-}"
-    printf -- "${_test_arg}" | { ret=false; while ${VUTIL_read_n1} c; do case "$c" in [0-9]) ret=true;; *) ret=false; break;; esac; done; $ret; } \
+    { ret=false; while test -n "${_test_arg}"; do _rem=${_test_arg#?}; _c=${_test_arg%${_rem}}; _test_arg=${_rem}
+      case "${_c}" in [0-9]) ret=true;; *) ret=false; break;; esac; done; $ret; } \
     && { test ${VLOG_LEVEL} -ge 5 -o ${arg} -ge 5 && vlog 0 "vlog_setlevel: new level ${arg} @${VLOG_OUT}"; VLOG_LEVEL="${arg}"; } \
     || { vlog 0 "!! vlog_setlevel: ${VCOLOR_ko}error${VCOLOR_rst}: bad level '${VCOLOR_opt}${arg}${VCOLOR_rst}'"; return 1; }
 }
@@ -149,12 +184,14 @@ vtab_find() {
     test -z "${_startidx}" && _startidx=1
 
     vescape_spaces _find
-    for (( _i = ${_startidx} ; _i <= _n ; _i = _i + 1 )); do
+    _i=${_startidx}
+    while test ${_i} -le ${_n}; do
         eval "_elt=\${${_tabn}[${_i}]}"
         if eval "case \${_elt} in ${_find}) true;; *) false;; esac"; then
             test -n "${_idxn}" && eval "${_idxn}=${_i}"
             return 0
         fi
+        _i=$((_i + 1))
     done
     return 1
 }
@@ -164,8 +201,10 @@ vtab_delat() {
     local _tabn="$1" _idx="$2" _n _j
     eval "_n=\${#${_tabn}[@]}"
     test ${_idx} -le "${_n}" -a ${_idx} -gt 0 || return 1
-    for (( _j = _idx + 1 ; _j <= _n ; _j = _j + 1 )); do
+    _j=$((_idx + 1))
+    while test ${_j} -le ${_n}; do
         eval "${_tabn}[$((_j - 1))]=\${${_tabn}[${_j}]}"
+        _j=$((_j + 1))
     done
     test -n "${ZSH_VERSION}" && eval "${_tabn}[${_n}]=()" 2> /dev/null # zsh
     eval "unset \"${_tabn}[${_n}]\""
@@ -191,7 +230,8 @@ vtab_pop0() {
 vtab_del() {
     local _ret=1 _tabn="$1" _arg _i _j _n _elt; shift
     eval "_n=\${#${_tabn}[@]}"
-    for (( _i = 1 ; _i <= _n ; _i = _i + 1 )); do
+    _i=1
+    while test ${_i} -le ${_n}; do
         eval "_elt=\${${_tabn}[${_i}]}"
         for _arg in "$@"; do
             vescape_spaces _arg
@@ -204,6 +244,7 @@ vtab_del() {
                 break
             fi
         done
+        _i=$((_i + 1))
     done
     return $_ret
 }
@@ -341,25 +382,26 @@ vtest_report() {
 }
 #vsystem_info() : info about system and shell
 vsystem_info() {
-    local bi biname
+    local bi biname _builtin
     vlog 1 "%-25s `vutil_version`" "VUTIL_VERSION"
     vlog 1 "%-25s `uname -a`" SYSTEM
     vlog 1 "%-25s ${VCOLOR_ok}${VUTIL_shell}${VCOLOR_rst} ${VUTIL_shellversion}" SHELL
-    if test "${VUTIL_shell}" = "ksh"; then
+    if ( builtin builtin > /dev/null 2>&1 && { builtin false > /dev/null 2>&1 || builtin test > /dev/null 2>&1; }; ); then
         # with ksh, 'builtin' command checks whether arg is builtin (but fails with 'trap').
-        set -- "test" "read" "printf" "cd" "true" "false" "pushd" "popd" "pwd" "which" \
+        set -- "builtin" "test" "read" "printf" "cd" "true" "false" "pushd" "popd" "pwd" "which" \
                "kill" "wait" "echo" "trap || { ! which trap && trap; }" "sleep" "dirname" "basename" \
                "[ -n "test" ]" "[[ \"abcd e\" =~ a.*d[[:space:]]e\$ ]]"
     else
         # with other shells (bash,sh,zsh,..), 'builtin' command executes the argument if it is builtin
-        set -- "test 1 -eq 1" \
+        set -- "builtin" \
+               "test 1 -eq 1" \
                "read < /dev/null; printf '1\n' | builtin read" \
                "printf -- ''" \
                "cd ." \
                "true" \
                "false ; _test=\$( { builtin false; } 2>&1); test -z \"\${_test}\"" \
                "pushd . > /dev/null" \
-               "popd > /dev/null" \
+               "popd > /dev/null; pushd . > /dev/null 2>&1; popd > /dev/null" \
                "pwd > /dev/null" \
                "which \"$SHELL\" > /dev/null" \
                "kill -l > /dev/null" \
@@ -372,14 +414,16 @@ vsystem_info() {
                "[ -n "test" ]" \
                "[[ \"abcd e\" =~ a.*d[[:space:]]e\$ ]]"
     fi
+    _builtin=builtin
     for bi in "$@"; do
         biname="${bi%% *}"
         case "$bi" in
-            "["*)   eval "{ ${bi} ; }  2> /dev/null";;
-            *)      eval "{ builtin ${bi} ; }  2> /dev/null";;
+            "["*)   ( eval "${bi}" ; )  2> /dev/null;;
+            *)      ( eval "${_builtin} ${bi}"; )  2> /dev/null || {
+                        test "${biname}" = builtin && _builtin="PATH=; "; false; };;
         esac \
         && vlog 1 "%-25s ${VCOLOR_ok}found${VCOLOR_rst}" "builtin-${biname}" \
-        || vlog 1 "%-25s ${VCOLOR_ko}not found${VCOLOR_rst}, using `which "${biname}"`" "builtin-${biname}"
+        || vlog 1 "%-25s ${VCOLOR_ko}not found${VCOLOR_rst}, using `which "${biname}" 2> /dev/null || true`" "builtin-${biname}"
     done
     unset read
 }
@@ -476,11 +520,11 @@ while vgetopt opt arg "$@"; do
 done
 
 ############### CRAP ############################################################
-vlog 4 "$0: 0='$0' _='${VUTIL_underscore}' @='${VUTIL_arobas}'"
+vlog 4 "${VUTIL_0}: 0='${VUTIL_0}' _='${VUTIL_underscore}' @='${VUTIL_arobas}'"
 #vutil_sourcing() - tells wheter this script is executed or sourced
 vutil_sourcing_bash() {
     local my0
-    test -n "$1" && my0="$1" || my0="$0"
+    test -n "$1" && my0="$1" || my0="${VUTIL_0}"
   if test -e "${my0}" -a "$my0" = "${BASH_SOURCE[0]}" -a -z "${VUTIL_underscore}"; then
         read -n 1 c < "${my0}" && case "$c" in [[:print:]]) true;; *) false;; esac \
         && { VUTIL_sourcing=0;  VUTIL_exit=return;  return ${VUTIL_sourcing}; } \
@@ -492,14 +536,15 @@ vutil_sourcing_bash() {
   fi
 }
 vutil_sourcing_ksh() {
-    test -n "$1" && my0="$1" || my0="$0"
+    test -n "$1" && my0="$1" || my0="${VUTIL_0}"
+    #if test -e "${my0}" -a "$my0" = "${VUTIL_0}" -a -z "${VUTIL_underscore}"; then
     if false && test -e "${my0}" -a "${my0}" = "${VUTIL_underscore}"; then
-        read -N 1 c < "${my0}" && case "$c" in [[:print:]]) true;; *) false;; esac \
+        ${VUTIL_read_n1} c < "${my0}" && case "$c" in [[:print:]]) true;; *) false;; esac \
         && { VUTIL_sourcing=0;  VUTIL_exit=return;  return ${VUTIL_sourcing}; } \
         || { VUTIL_sourcing=1;  VUTIL_exit=exit;    return ${VUTIL_sourcing}; }
     else
 
-    test -e "${my0}" -a "${my0}" != "${VUTIL_underscore}" && read -N 1 c < "${my0}" && case "$c" in [[:print:]]) true;; *) false;; esac \
+    test -e "${my0}" -a "${my0}" != "${VUTIL_underscore}" && ${VUTIL_read_n1} c < "${my0}" && case "$c" in [[:print:]]) true;; *) false;; esac \
     && { VUTIL_sourcing=1;  VUTIL_exit=exit;    return ${VUTIL_sourcing}; } \
     || { VUTIL_sourcing=0;  VUTIL_exit=return;  return ${VUTIL_sourcing}; }
 
@@ -514,7 +559,7 @@ vutil_sourcing_zsh() {
 #vutil_myname()
 vutil_myname() {
     local my0 mydir myname mypath
-    my0="${BASH_SOURCE[0]}"; test -z "$my0" && my0="$0"
+    my0="${BASH_SOURCE[0]}"; test -z "$my0" && my0="${VUTIL_0}"
     mydir="$(dirname "$my0")"; pushd "${mydir}" > /dev/null; mydir="`pwd`"; popd > /dev/null
     myname="$(basename "$my0")"; mypath="${mydir}/${myname}"
 }
@@ -523,14 +568,14 @@ vutil_myname() {
 #####################################################################################################
 # TESTS
 #####################################################################################################
-if vutil_sourcing "$0" "$underscore"; then
-    vlog 4 "$0: SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}}, @='${VUTIL_arobas}')"
+if vutil_sourcing "${VUTIL_0}" "${VUTIL_underscore}"; then
+    vlog 4 "${VUTIL_0}: SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}}, @='${VUTIL_arobas}')"
 else
-    vlog 4 "$0: NOT SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}}, @='${VUTIL_arobas}')"
+    vlog 4 "${VUTIL_0}: NOT SOURCING (shell: ${BASH_VERSION:+bash ${BASH_VERSION}}${KSH_VERSION:+ksh ${KSH_VERSION}}${ZSH_VERSION:+zsh ${ZSH_VERSION}}, @='${VUTIL_arobas}')"
     dotests=
 
     show_help() {
-        vlog 1 "Usage: `basename "$0"` [-hVIT] [-l <level>]"
+        vlog 1 "Usage: `basename "${VUTIL_0}"` [-hVIT] [-l <level>]"
         vlog 1 "  -h, --help              show help"
         vlog 1 "  -V, --version           show version"
         vlog 1 "  -l, --level <level>     set log level"
@@ -711,26 +756,27 @@ else
     #################################################################################
     # check if the sourcing detection is ok
     #################################################################################
+
     for exe in "${SHELL}" ""; do
-        if test -n "${exe}"; then ret=`"${exe}" "$0"`; else ret=`"$0"`; fi
-        vtest_test "$exe $0> expected:'', ret:'${ret}'" $? -eq 0 -a -z "${ret}"
+        if test -n "${exe}"; then ret=`"${exe}" "${VUTIL_0}"`; else ret=`"${VUTIL_0}"`; fi
+        vtest_test "$exe ${VUTIL_0}> expected:'', ret:'${ret}'" $? -eq 0 -a -z "${ret}"
 
-        if test -n "${exe}"; then ret=`"${exe}" "$0" -V`; else ret=`"$0" -V`; fi
-        vtest_test "$exe $0 -V> expected:0,'`vutil_version`', got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "`vutil_version`"
-
-        if test -n "$exe"; then
-            ret=`${SHELL} -c "VUTIL_sourcing=12345; . $0 ; echo ok; test \"\\\${VUTIL_sourcing}\" = \"0\""`
-        else
-            ret=`( VUTIL_sourcing=12345; . $0 ; echo ok; test "\${VUTIL_sourcing}" = "0" )`
-        fi
-        vtest_test "${exe:+${exe} -c }\". $0\" expected:0,'ok' got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "ok"
+        if test -n "${exe}"; then ret=`"${exe}" "${VUTIL_0}" -V`; else ret=`"${VUTIL_0}" -V`; fi
+        vtest_test "$exe ${VUTIL_0} -V> expected:0,'`vutil_version`', got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "`vutil_version`"
 
         if test -n "$exe"; then
-            ret=`${SHELL} -c "VUTIL_sourcing=12345; . $0 -V; echo ok; test \"\\\${VUTIL_sourcing}\" = \"0\""`
+            ret=`${SHELL} -c "VUTIL_sourcing=12345; . ${VUTIL_0} ; echo ok; test \"\\\${VUTIL_sourcing}\" = \"0\""`
         else
-            ret=`( VUTIL_sourcing=12345; . $0 -V; echo ok; test "\${VUTIL_sourcing}" = "0" )`
+            ret=`( VUTIL_sourcing=12345; . ${VUTIL_0} ; echo ok; test "\${VUTIL_sourcing}" = "0" )`
         fi
-        vtest_test "${exe:+${exe} -c }\". $0 -V\" expected:0,'ok' got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "ok"
+        vtest_test "${exe:+${exe} -c }\". ${VUTIL_0}\" expected:0,'ok' got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "ok"
+
+        if test -n "$exe"; then
+            ret=`${SHELL} -c "VUTIL_sourcing=12345; . ${VUTIL_0} -V; echo ok; test \"\\\${VUTIL_sourcing}\" = \"0\""`
+        else
+            ret=`( VUTIL_sourcing=12345; . ${VUTIL_0} -V; echo ok; test "\${VUTIL_sourcing}" = "0" )`
+        fi
+        vtest_test "${exe:+${exe} -c }\". ${VUTIL_0} -V\" expected:0,'ok' got:$?,'${ret}'" $? -eq 0 -a "${ret}" = "ok"
 
     done
 
@@ -794,7 +840,7 @@ EOFTMP1
             rm -f "${VUTIL_tmp_subshell_log}"
             export SHELL="${sh}"
 
-            "$sh" "$0" "$@"
+            "$sh" "${VUTIL_0}" "$@"
             vtest_test "$sh tests" $? -eq 0
             vlog 1 "-----------------------------------------------------------"
 
