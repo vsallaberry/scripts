@@ -30,5 +30,8 @@
 #define CP_INTR         3
 #define CP_IDLE         4
 
+/* common crossmake bsd sysctl wrapper */
+#include "crossmake/bsd/sysctl.h"
+
 #endif
 
