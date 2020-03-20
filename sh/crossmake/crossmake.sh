@@ -77,21 +77,28 @@ sys_run() {
     return 0
 }
 case "${sys}" in
-    linux) vtab_add args \
-                "sys_INCS+=-D_cm_STR\\(x\\)=#x" \
-                "sys_INCS+=-DCPU_PROC_FILE=_cm_STR\\(${mypath}/linux/root/proc/stat\\)"
-           sys_run() {
-               local i=0
-               if ! test -e "${mypath}/linux/root/proc/stat"; then
-                   mkdir -p "${mypath}/linux/root/proc"
-                   cp -a "${mypath}/linux/root0/proc/stat" "${mypath}/linux/root/proc/stat"
-               fi
-               while true; do
-                   cat "${mypath}/linux/root$((i % 5))/proc/stat" > "${mypath}/linux/root/proc/stat"
-                   i=$((i+1))
-                   sleep 1
-                done
-           } ;;
+    linux)
+        vtab_add args \
+            "sys_INCS+=-D_cm_STR\\(x\\)=#x" \
+            "sys_INCS+=-DCPU_PROC_FILE=_cm_STR\\(${mypath}/linux/root/proc/stat\\)"
+        sys_run() {
+            local i=0
+            if ! test -e "${mypath}/linux/root/proc/stat"; then
+                mkdir -p "${mypath}/linux/root/proc"
+                cp -a "${mypath}/linux/root0/proc/stat" "${mypath}/linux/root/proc/stat"
+            fi
+            while true; do
+                cat "${mypath}/linux/root$((i % 5))/proc/stat" > "${mypath}/linux/root/proc/stat"
+                i=$((i+1))
+                sleep 1
+            done
+        } ;;
+    freebsd)
+        vtab_add args "sys_INCS+=-D__FreeBSD_version";;
+    netbsd)
+        vtab_add args "sys_INCS+=-D__NetBSD__";;
+    openbsd)
+        vtab_add args "sys_INCS+=-DOpenBSD";;
 esac
 
 if test -n "${run}"; then
@@ -106,5 +113,28 @@ if test -n "${run}"; then
     trap - EXIT
     wait
 else
-    "${make}" UNAME_SYS="${sys}" "LIBS_${sys#darwin}=" sys_INCS="-isystem${mypath}/${sys}/include" "${args[@]}"
+    # DIRTY BUT NEEDED to make sysdeps sources depends on crossmake headers
+    for f in `find . -path "*/sysdeps/*-${sys}.*" -and \( -iname '*.c' -or -iname '*.cc' -or -iname '*.cpp' \)`; do
+        file=${f}
+        base=${file%/sysdeps/*-${sys}.*}
+        while ! test -e "${base}/Makefile"; do
+            base="${base}/.."
+        done
+        pushd "$base" > /dev/null && { base=`pwd`; popd > /dev/null; }
+        pushd "`dirname "${file}"`" > /dev/null && { file="`pwd`/`basename "${file}"`"; popd > /dev/null; }
+        file="${file#${base}/}"
+        obj="${file%.*}.o"
+        if ! grep -Eq "${obj}[[:space:]]*:[[:space:]]*${mypath}/${sys}/include" "${base}/.alldeps.d" 2> /dev/null; then
+            echo "SYSDEP <$file> root $base"
+            for dep in `find "${mypath}/${sys}/include" "${mypath}/common/include" -iname '*.h' -or -iname '*.hh' -or -iname '*.hpp'`; do
+                echo "$obj NEED $dep"
+                echo "${obj}: ${dep}" >> "${base}/.alldeps.d"
+            done
+        fi
+    done
+    # RUN MAKE
+    "${make}" UNAME_SYS="${sys}" "LIBS_${sys#darwin}=" \
+        sys_INCS="-isystem${mypath}/${sys}/include -isystem${mypath}/common/include" \
+        "${args[@]}"
 fi
+
