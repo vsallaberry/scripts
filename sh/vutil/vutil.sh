@@ -1,6 +1,6 @@
 #!/bin/sh
 # --
-# Copyright (C) 2020 Vincent Sallaberry
+# Copyright (C) 2020-2023 Vincent Sallaberry
 # scripts/sh/vutil/vutil.sh <https://github.com/vsallaberry/scripts>
 # sh utilities.
 #
@@ -36,7 +36,7 @@ VUTIL_0="$0"
 ###################################################################
 #vutil_version()
 vutil_version() {
-    echo "0.5.5 Copyright (C) 2020 Vincent Sallaberry / GNU GPL licence"
+    echo "0.5.6 Copyright (C) 2020-2023 Vincent Sallaberry / GNU GPL licence"
 }
 # test wrapper to force use of builtin / not needed
 #test() {
@@ -58,7 +58,7 @@ elif test -n "${ZSH_VERSION}"; then
     VUTIL_shell=zsh
     VUTIL_shellversion="${ZSH_VERSION}"
     vutil_sourcing_custom() { vutil_sourcing_zsh "$@"; }
-    VUTIL_read_n1_fun() { read -u 0 -k 1 "$@"; }
+    VUTIL_read_n1_fun() { test -t 0 && read -k 1 "$@" || read -u 0 -k 1 "$@"; }
     VUTIL_read_n1=VUTIL_read_n1_fun
 elif test -n "${BASH_VERSION}"; then
     VUTIL_shell=bash; VUTIL_shellversion="${BASH_VERSION}"

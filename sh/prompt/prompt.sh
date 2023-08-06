@@ -1,6 +1,6 @@
 #!/bin/sh
 # --
-# Copyright (C) 2017-2019 Vincent Sallaberry
+# Copyright (C) 2017-2023 Vincent Sallaberry
 # scripts/sh/prompt.sh <https://github.com/vsallaberry/scripts>
 # ps1_open v5.0.4 SH ~generic prompt.
 #
@@ -88,8 +88,8 @@ else
     ps1PrintLF='\n'
 fi
 # Configure other commands
-ps1GitBin=$(which git 2> /dev/null)
-ps1WcBin=$(which wc 2> /dev/null)
+test -x "${ps1GitBin}" || ps1GitBin=$(which git 2> /dev/null)
+test -x "${ps1WcBin}" || ps1WcBin=$(which wc 2> /dev/null)
 
 # Try to guess Shell capabilities (\[ \], \A, \w)
 # ps1ShType can be overriden before calling this script.
@@ -388,7 +388,9 @@ else
 [ "${ps1ErrOn}" != "0" ] && ps1Cmd="ps1Res=\"\$?\";" || ps1Cmd=
 ps1Cmd="${ps1Cmd}ps1Str=;"
 # Get Number of jobs. must be among firsts on 'KSH Version AJM 93u+ 2012-08-01' osx 10.11.6, don't ask why.
-[ "${ps1JobOn}" != "0" ] && ps1Cmd="${ps1Cmd} ps1Job=\$(jobs 2> /dev/null | ${ps1WcBin} -l);"
+#[ "${ps1JobOn}" != "0" ] && ps1Cmd="${ps1Cmd} ps1Job=\$(jobs 2> /dev/null | ${ps1WcBin} -l);"
+[ "${ps1JobOn}" != "0" ] && ps1Cmd="${ps1Cmd} ps1Job=\$(jobs -p 2> /dev/null \
+    | { n=0; l=; while read l || test -n \"\${l}\"; do n=\$((n+1)); done; echo \"\${n}\"; });"
 # Previous command result if not 0, avoid ! as special on some ksh
 [ "${ps1ErrOn}" != "0" ] && ps1Cmd="${ps1Cmd} [ \"\${ps1Res}\" = \"0\" ] || ps1Str=\"${ps1ColorErr}\${ps1Res}${ps1ColorReset} \";"
 # Date
